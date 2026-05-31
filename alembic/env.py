@@ -8,8 +8,12 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.database.base import Base
 
-# Import models here as they are added in future phases so Alembic can detect them.
-# from app.models import user  # noqa: ERA001
+from app.models import (  # noqa: F401
+    EmailVerificationToken,
+    PasswordResetToken,
+    RefreshToken,
+    User,
+)
 
 config = context.config
 

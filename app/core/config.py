@@ -3,8 +3,10 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, computed_field
+from pydantic import Field, PostgresDsn, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_JWT_SECRET_KEY = "change-me-in-production-use-a-long-random-secret"
 
 
 class Settings(BaseSettings):
@@ -33,13 +35,44 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="PORT")
 
     database_url: PostgresDsn = Field(
-        default="postgresql+psycopg://postgres:postgres@localhost:5432/cookie_circle",
+        default="postgresql+psycopg://postgres:postgres@localhost:5432/cookie_circle_dev",
         alias="DATABASE_URL",
     )
 
     cors_origins: str = Field(
         default="http://localhost:3000,http://localhost:3001",
         alias="CORS_ORIGINS",
+    )
+
+    jwt_secret_key: str = Field(
+        default=DEFAULT_JWT_SECRET_KEY,
+        alias="JWT_SECRET_KEY",
+    )
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(
+        default=15,
+        alias="ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+    refresh_token_expire_days: int = Field(
+        default=7,
+        alias="REFRESH_TOKEN_EXPIRE_DAYS",
+    )
+    email_verification_token_expire_hours: int = Field(
+        default=24,
+        alias="EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS",
+    )
+    password_reset_token_expire_hours: int = Field(
+        default=1,
+        alias="PASSWORD_RESET_TOKEN_EXPIRE_HOURS",
+    )
+
+    frontend_client_url: str = Field(
+        default="http://localhost:3000",
+        alias="FRONTEND_CLIENT_URL",
+    )
+    frontend_admin_url: str = Field(
+        default="http://localhost:3001",
+        alias="FRONTEND_ADMIN_URL",
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -66,6 +99,19 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @model_validator(mode="after")
+    def validate_security_settings(self) -> "Settings":
+        if self.app_env in ("production", "staging"):
+            if (
+                self.jwt_secret_key == DEFAULT_JWT_SECRET_KEY
+                or len(self.jwt_secret_key) < 32
+            ):
+                raise ValueError(
+                    "JWT_SECRET_KEY must be a secure random value of at least "
+                    "32 characters in staging and production environments",
+                )
+        return self
 
 
 @lru_cache
