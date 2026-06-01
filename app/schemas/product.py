@@ -24,6 +24,7 @@ class ProductBase(BaseModel):
     yield_quantity: Decimal = Field(gt=0)
     production_notes: str | None = Field(default=None, max_length=5000)
     is_active: bool = True
+    is_public: bool = True
 
     @field_validator("name")
     @classmethod
@@ -50,6 +51,7 @@ class ProductUpdate(BaseModel):
     yield_quantity: Decimal | None = Field(default=None, gt=0)
     production_notes: str | None = Field(default=None, max_length=5000)
     is_active: bool | None = None
+    is_public: bool | None = None
     recipe_lines: list[RecipeLineInput] | None = None
     utility_charge_ids: list[UUID] | None = None
     labour_charge_ids: list[UUID] | None = None

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.supplier import SupplierSummary
 from app.utils.costing import calculate_cost_per_unit
 
 
@@ -18,6 +19,7 @@ class ProductItemBase(BaseModel):
     purchase_price: Decimal = Field(ge=0)
     purchase_quantity: Decimal = Field(gt=0)
     purchase_unit: str = Field(min_length=1, max_length=50)
+    primary_supplier_id: UUID | None = None
     is_active: bool = True
 
     @field_validator("name", "purchase_unit")
@@ -44,6 +46,7 @@ class ProductItemUpdate(BaseModel):
     purchase_price: Decimal | None = Field(default=None, ge=0)
     purchase_quantity: Decimal | None = Field(default=None, gt=0)
     purchase_unit: str | None = Field(default=None, min_length=1, max_length=50)
+    primary_supplier_id: UUID | None = None
     is_active: bool | None = None
 
     @field_validator("name", "purchase_unit")
@@ -76,6 +79,7 @@ class ProductItemResponse(ProductItemBase):
     id: UUID
     cost_per_unit: Decimal
     item_type: ProductItemTypeSummary
+    primary_supplier: SupplierSummary | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -93,6 +97,10 @@ class ProductItemResponse(ProductItemBase):
             item.purchase_price,
             item.purchase_quantity,
         )
+        primary_supplier = None
+        if item.primary_supplier is not None:
+            primary_supplier = SupplierSummary.model_validate(item.primary_supplier)
+
         return cls(
             id=item.id,
             item_type_id=item.item_type_id,
@@ -101,9 +109,11 @@ class ProductItemResponse(ProductItemBase):
             purchase_price=item.purchase_price,
             purchase_quantity=item.purchase_quantity,
             purchase_unit=item.purchase_unit,
+            primary_supplier_id=item.primary_supplier_id,
             is_active=item.is_active,
             cost_per_unit=cost_per_unit,
             item_type=ProductItemTypeSummary.model_validate(item.item_type),
+            primary_supplier=primary_supplier,
             created_at=item.created_at,
             updated_at=item.updated_at,
         )

@@ -47,6 +47,7 @@ class ProductService:
             yield_quantity=payload.yield_quantity,
             production_notes=payload.production_notes,
             is_active=payload.is_active,
+            is_public=payload.is_public,
         )
         self._apply_recipe_lines(product, payload.recipe_lines)
         self._apply_charges(
@@ -118,6 +119,8 @@ class ProductService:
             product.production_notes = payload.production_notes
         if payload.is_active is not None:
             product.is_active = payload.is_active
+        if payload.is_public is not None:
+            product.is_public = payload.is_public
 
         if payload.recipe_lines is not None:
             self._replace_recipe_lines(product, payload.recipe_lines)

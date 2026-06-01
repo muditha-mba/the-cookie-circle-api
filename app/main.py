@@ -8,13 +8,20 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.middleware.cors import setup_cors
 from app.routers.auth import router as auth_router
+from app.routers.business_settings import router as business_settings_router
 from app.routers.collections import router as collections_router
+from app.routers.customers import router as customers_router
+from app.routers.delivery_areas import router as delivery_areas_router
+from app.routers.orders import router as orders_router
+from app.routers.production import router as production_router
+from app.routers.suppliers import router as suppliers_router
 from app.routers.health import router as health_router
 from app.routers.labour_charges import router as labour_charges_router
 from app.routers.product_item_types import router as product_item_types_router
 from app.routers.product_items import router as product_items_router
 from app.routers.products import router as products_router
 from app.routers.tax_charges import router as tax_charges_router
+from app.routers.users import router as users_router
 from app.routers.utility_charges import router as utility_charges_router
 
 
@@ -42,6 +49,13 @@ def create_app() -> FastAPI:
     app.include_router(tax_charges_router, prefix=settings.api_v1_prefix)
     app.include_router(products_router, prefix=settings.api_v1_prefix)
     app.include_router(collections_router, prefix=settings.api_v1_prefix)
+    app.include_router(business_settings_router, prefix=settings.api_v1_prefix)
+    app.include_router(customers_router, prefix=settings.api_v1_prefix)
+    app.include_router(delivery_areas_router, prefix=settings.api_v1_prefix)
+    app.include_router(orders_router, prefix=settings.api_v1_prefix)
+    app.include_router(production_router, prefix=settings.api_v1_prefix)
+    app.include_router(suppliers_router, prefix=settings.api_v1_prefix)
+    app.include_router(users_router, prefix=settings.api_v1_prefix)
 
     return app
 

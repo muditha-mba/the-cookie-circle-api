@@ -49,6 +49,16 @@ class CollectionRepository:
             selectinload(Collection.tax_charges),
         )
 
+    def get_for_costing_by_ids(self, ids: list[uuid.UUID]) -> list[Collection]:
+        if not ids:
+            return []
+        stmt = (
+            select(Collection)
+            .options(*self._detail_options())
+            .where(Collection.id.in_(ids))
+        )
+        return list(self.db.scalars(stmt).all())
+
     def get_by_id(self, collection_id: uuid.UUID) -> Collection | None:
         stmt = (
             select(Collection)

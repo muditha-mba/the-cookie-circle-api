@@ -35,6 +35,7 @@ class CollectionBase(BaseModel):
     selling_price: Decimal = Field(ge=0)
     buffer_amount: Decimal = Field(default=Decimal("0"), ge=0)
     is_active: bool = True
+    is_public: bool = True
 
     @field_validator("name")
     @classmethod
@@ -60,6 +61,7 @@ class CollectionUpdate(BaseModel):
     selling_price: Decimal | None = Field(default=None, ge=0)
     buffer_amount: Decimal | None = Field(default=None, ge=0)
     is_active: bool | None = None
+    is_public: bool | None = None
     product_lines: list[CollectionProductLineInput] | None = None
     item_lines: list[CollectionItemLineInput] | None = None
     utility_charge_ids: list[UUID] | None = None

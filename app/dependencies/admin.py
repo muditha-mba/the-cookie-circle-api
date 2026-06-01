@@ -10,7 +10,19 @@ from app.core.exceptions import ForbiddenError
 from app.database.session import get_db
 from app.dependencies.auth import get_current_user
 from app.models.user import User
+from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_service import CollectionService
+from app.services.customer_communication_service import CustomerCommunicationService
+from app.services.customer_insights_service import CustomerInsightsService
+from app.services.customer_note_service import CustomerNoteService
+from app.services.customer_service import CustomerService
+from app.services.delivery_area_service import DeliveryAreaService
+from app.services.order_service import OrderService
+from app.services.production_batch_service import ProductionBatchService
+from app.services.production_planning_service import ProductionPlanningService
+from app.services.purchase_planning_service import PurchasePlanningService
+from app.services.supplier_service import SupplierService
+from app.services.user_lookup_service import UserLookupService
 from app.services.labour_charge_service import LabourChargeService
 from app.services.product_item_service import ProductItemService
 from app.services.product_item_type_service import ProductItemTypeService
@@ -68,3 +80,75 @@ def get_collection_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> CollectionService:
     return CollectionService(db)
+
+
+def get_business_setting_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> BusinessSettingService:
+    return BusinessSettingService(db)
+
+
+def get_customer_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerService:
+    return CustomerService(db)
+
+
+def get_customer_insights_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerInsightsService:
+    return CustomerInsightsService(db)
+
+
+def get_customer_note_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerNoteService:
+    return CustomerNoteService(db)
+
+
+def get_customer_communication_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerCommunicationService:
+    return CustomerCommunicationService(db)
+
+
+def get_order_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> OrderService:
+    return OrderService(db)
+
+
+def get_delivery_area_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> DeliveryAreaService:
+    return DeliveryAreaService(db)
+
+
+def get_user_lookup_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> UserLookupService:
+    return UserLookupService(db)
+
+
+def get_production_planning_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ProductionPlanningService:
+    return ProductionPlanningService(db)
+
+
+def get_supplier_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> SupplierService:
+    return SupplierService(db)
+
+
+def get_production_batch_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ProductionBatchService:
+    return ProductionBatchService(db)
+
+
+def get_purchase_planning_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> PurchasePlanningService:
+    return PurchasePlanningService(db)

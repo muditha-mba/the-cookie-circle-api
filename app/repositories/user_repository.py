@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import String, cast, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.enums import UserRole
@@ -23,6 +23,32 @@ class UserRepository:
     def get_by_email(self, email: str) -> User | None:
         stmt = select(User).where(User.email == normalize_email(email))
         return self.db.scalar(stmt)
+
+    def list_linkable_customers(
+        self,
+        *,
+        search: str | None,
+        limit: int = 25,
+    ) -> list[User]:
+        """Active customer-role users available to link to a customer profile."""
+        stmt = select(User).where(
+            User.role == UserRole.CUSTOMER,
+            User.is_active.is_(True),
+        )
+
+        if search:
+            pattern = f"%{search.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    User.email.ilike(pattern),
+                    User.first_name.ilike(pattern),
+                    User.last_name.ilike(pattern),
+                    cast(User.id, String).ilike(pattern),
+                ),
+            )
+
+        stmt = stmt.order_by(User.email.asc()).limit(limit)
+        return list(self.db.scalars(stmt).all())
 
     def create(
         self,

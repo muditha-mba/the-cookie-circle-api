@@ -43,6 +43,7 @@ class Collection(Base, TimestampMixin):
         server_default="0",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
 
     product_lines: Mapped[list["CollectionProductLine"]] = relationship(
         "CollectionProductLine",

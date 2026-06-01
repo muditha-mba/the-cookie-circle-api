@@ -53,6 +53,7 @@ class CollectionService:
             selling_price=payload.selling_price,
             buffer_amount=payload.buffer_amount,
             is_active=payload.is_active,
+            is_public=payload.is_public,
         )
         self._apply_product_lines(collection, payload.product_lines)
         self._apply_item_lines(collection, payload.item_lines)
@@ -129,6 +130,8 @@ class CollectionService:
             collection.buffer_amount = payload.buffer_amount
         if payload.is_active is not None:
             collection.is_active = payload.is_active
+        if payload.is_public is not None:
+            collection.is_public = payload.is_public
 
         if payload.product_lines is not None:
             self._replace_product_lines(collection, payload.product_lines)

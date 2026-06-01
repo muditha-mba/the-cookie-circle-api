@@ -48,6 +48,7 @@ class Product(Base, TimestampMixin):
     yield_quantity: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     production_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
 
     recipe_lines: Mapped[list["ProductRecipeLine"]] = relationship(
         "ProductRecipeLine",

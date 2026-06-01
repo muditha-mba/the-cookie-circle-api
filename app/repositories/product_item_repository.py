@@ -30,7 +30,10 @@ class ProductItemRepository:
             return []
         stmt = (
             select(ProductItem)
-            .options(joinedload(ProductItem.item_type))
+            .options(
+                joinedload(ProductItem.item_type),
+                joinedload(ProductItem.primary_supplier),
+            )
             .where(ProductItem.id.in_(ids))
         )
         return list(self.db.scalars(stmt).all())
@@ -38,7 +41,10 @@ class ProductItemRepository:
     def get_by_id(self, item_id: uuid.UUID) -> ProductItem | None:
         stmt = (
             select(ProductItem)
-            .options(joinedload(ProductItem.item_type))
+            .options(
+                joinedload(ProductItem.item_type),
+                joinedload(ProductItem.primary_supplier),
+            )
             .where(ProductItem.id == item_id)
         )
         return self.db.scalar(stmt)
@@ -61,6 +67,7 @@ class ProductItemRepository:
         purchase_quantity,
         purchase_unit: str,
         is_active: bool,
+        primary_supplier_id: uuid.UUID | None = None,
     ) -> ProductItem:
         record = ProductItem(
             item_type_id=item_type_id,
@@ -70,6 +77,7 @@ class ProductItemRepository:
             purchase_quantity=purchase_quantity,
             purchase_unit=purchase_unit.strip().lower(),
             is_active=is_active,
+            primary_supplier_id=primary_supplier_id,
         )
         self.db.add(record)
         self.db.flush()
@@ -77,7 +85,7 @@ class ProductItemRepository:
 
     def update(self, record: ProductItem, **fields) -> ProductItem:
         for key, value in fields.items():
-            if value is None:
+            if value is None and key != "primary_supplier_id":
                 continue
             if key == "name":
                 setattr(record, key, value.strip())
@@ -108,7 +116,10 @@ class ProductItemRepository:
         sort_order: str,
         item_type_id: uuid.UUID | None = None,
     ) -> tuple[list[ProductItem], int]:
-        stmt = select(ProductItem).options(joinedload(ProductItem.item_type))
+        stmt = select(ProductItem).options(
+            joinedload(ProductItem.item_type),
+            joinedload(ProductItem.primary_supplier),
+        )
         count_stmt = select(func.count()).select_from(ProductItem)
 
         filters = []
