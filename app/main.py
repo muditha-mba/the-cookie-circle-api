@@ -9,6 +9,11 @@ from app.core.config import settings
 from app.middleware.cors import setup_cors
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
+from app.routers.labour_charges import router as labour_charges_router
+from app.routers.product_item_types import router as product_item_types_router
+from app.routers.product_items import router as product_items_router
+from app.routers.tax_charges import router as tax_charges_router
+from app.routers.utility_charges import router as utility_charges_router
 
 
 @asynccontextmanager
@@ -28,6 +33,11 @@ def create_app() -> FastAPI:
     setup_cors(app)
     app.include_router(health_router)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
+    app.include_router(product_item_types_router, prefix=settings.api_v1_prefix)
+    app.include_router(product_items_router, prefix=settings.api_v1_prefix)
+    app.include_router(utility_charges_router, prefix=settings.api_v1_prefix)
+    app.include_router(labour_charges_router, prefix=settings.api_v1_prefix)
+    app.include_router(tax_charges_router, prefix=settings.api_v1_prefix)
 
     return app
 

@@ -10,9 +10,14 @@ from app.database.base import Base
 
 from app.models import (  # noqa: F401
     EmailVerificationToken,
+    LabourCharge,
     PasswordResetToken,
+    ProductItem,
+    ProductItemType,
     RefreshToken,
+    TaxCharge,
     User,
+    UtilityCharge,
 )
 
 config = context.config

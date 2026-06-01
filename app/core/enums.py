@@ -15,3 +15,10 @@ class AppContext(str, enum.Enum):
 
     ADMIN = "admin"
     CLIENT = "client"
+
+
+class ChargeType(str, enum.Enum):
+    """Global charge calculation type."""
+
+    FIXED = "fixed"
+    PERCENTAGE = "percentage"
