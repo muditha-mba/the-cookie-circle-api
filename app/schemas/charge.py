@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.core.enums import ChargeType
+from app.core.enums import ChargeApplicability, ChargeType
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -19,6 +19,7 @@ class ChargeBase(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     charge_type: ChargeType
     amount: Decimal = Field(gt=0)
+    applicability: ChargeApplicability = ChargeApplicability.BOTH
     is_active: bool = True
 
     @field_validator("name")
@@ -40,6 +41,7 @@ class ChargeUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     charge_type: ChargeType | None = None
     amount: Decimal | None = Field(default=None, gt=0)
+    applicability: ChargeApplicability | None = None
     is_active: bool | None = None
 
     @field_validator("name")

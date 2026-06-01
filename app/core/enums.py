@@ -22,3 +22,11 @@ class ChargeType(str, enum.Enum):
 
     FIXED = "fixed"
     PERCENTAGE = "percentage"
+
+
+class ChargeApplicability(str, enum.Enum):
+    """Where a global charge may be attached."""
+
+    PRODUCT = "product"
+    COLLECTION = "collection"
+    BOTH = "both"

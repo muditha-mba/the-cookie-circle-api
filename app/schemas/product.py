@@ -146,6 +146,7 @@ class AttachedChargeSummary(BaseModel):
     name: str
     charge_type: str
     amount: Decimal
+    applicability: str
     is_active: bool
 
 

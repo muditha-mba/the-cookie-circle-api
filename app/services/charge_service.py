@@ -46,6 +46,7 @@ class ChargeService(Generic[ModelT, CreateT, UpdateT, ResponseT]):
             description=payload.description,
             charge_type=payload.charge_type,
             amount=payload.amount,
+            applicability=payload.applicability,
             is_active=payload.is_active,
         )
         self.db.commit()

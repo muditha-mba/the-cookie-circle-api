@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.middleware.cors import setup_cors
 from app.routers.auth import router as auth_router
+from app.routers.collections import router as collections_router
 from app.routers.health import router as health_router
 from app.routers.labour_charges import router as labour_charges_router
 from app.routers.product_item_types import router as product_item_types_router
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(labour_charges_router, prefix=settings.api_v1_prefix)
     app.include_router(tax_charges_router, prefix=settings.api_v1_prefix)
     app.include_router(products_router, prefix=settings.api_v1_prefix)
+    app.include_router(collections_router, prefix=settings.api_v1_prefix)
 
     return app
 

@@ -25,6 +25,16 @@ class ProductItemRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def get_by_ids_with_type(self, ids: list[uuid.UUID]) -> list[ProductItem]:
+        if not ids:
+            return []
+        stmt = (
+            select(ProductItem)
+            .options(joinedload(ProductItem.item_type))
+            .where(ProductItem.id.in_(ids))
+        )
+        return list(self.db.scalars(stmt).all())
+
     def get_by_id(self, item_id: uuid.UUID) -> ProductItem | None:
         stmt = (
             select(ProductItem)

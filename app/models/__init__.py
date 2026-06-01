@@ -1,6 +1,14 @@
 """SQLAlchemy models."""
 
 from app.models.base import TimestampMixin
+from app.models.collection import Collection
+from app.models.collection_associations import (
+    collection_labour_charges,
+    collection_tax_charges,
+    collection_utility_charges,
+)
+from app.models.collection_item_line import CollectionItemLine
+from app.models.collection_product_line import CollectionProductLine
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.labour_charge import LabourCharge
 from app.models.password_reset_token import PasswordResetToken
@@ -19,6 +27,9 @@ from app.models.user import User
 from app.models.utility_charge import UtilityCharge
 
 __all__ = [
+    "Collection",
+    "CollectionItemLine",
+    "CollectionProductLine",
     "EmailVerificationToken",
     "LabourCharge",
     "PasswordResetToken",
@@ -26,12 +37,15 @@ __all__ = [
     "ProductItem",
     "ProductItemType",
     "ProductRecipeLine",
-    "product_labour_charges",
-    "product_tax_charges",
-    "product_utility_charges",
     "RefreshToken",
     "TaxCharge",
     "TimestampMixin",
     "User",
     "UtilityCharge",
+    "collection_labour_charges",
+    "collection_tax_charges",
+    "collection_utility_charges",
+    "product_labour_charges",
+    "product_tax_charges",
+    "product_utility_charges",
 ]

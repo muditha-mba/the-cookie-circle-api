@@ -24,6 +24,7 @@ from app.schemas.product import (
     RecipeLineInput,
 )
 from app.services.product_cost_service import calculate_breakdown_for_product, calculate_product_cost_breakdown
+from app.utils.charge_applicability import PRODUCT_APPLICABILITIES, validate_charges_for_target
 
 
 class ProductService:
@@ -225,6 +226,11 @@ class ProductService:
         charges = loader(ids)
         if len(charges) != len(set(ids)):
             raise NotFoundError(f"One or more {label} charges were not found")
+        validate_charges_for_target(
+            charges,
+            target_label="product",
+            allowed=PRODUCT_APPLICABILITIES,
+        )
         return charges
 
     def _load_product_items(self, ids: list[uuid.UUID]):
@@ -284,5 +290,6 @@ class ProductService:
             name=charge.name,
             charge_type=charge.charge_type.value,
             amount=charge.amount,
+            applicability=charge.applicability.value,
             is_active=charge.is_active,
         )

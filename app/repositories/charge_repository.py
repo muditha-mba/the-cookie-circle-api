@@ -7,7 +7,7 @@ from typing import Generic, TypeVar
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import ChargeType
+from app.core.enums import ChargeApplicability, ChargeType
 
 T = TypeVar("T")
 
@@ -49,12 +49,14 @@ class ChargeRepository(Generic[T]):
         charge_type: ChargeType,
         amount,
         is_active: bool,
+        applicability: ChargeApplicability = ChargeApplicability.BOTH,
     ) -> T:
         record = self.model(
             name=name.strip(),
             description=description,
             charge_type=charge_type,
             amount=amount,
+            applicability=applicability,
             is_active=is_active,
         )
         self.db.add(record)

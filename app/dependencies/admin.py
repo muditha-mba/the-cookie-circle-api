@@ -10,6 +10,7 @@ from app.core.exceptions import ForbiddenError
 from app.database.session import get_db
 from app.dependencies.auth import get_current_user
 from app.models.user import User
+from app.services.collection_service import CollectionService
 from app.services.labour_charge_service import LabourChargeService
 from app.services.product_item_service import ProductItemService
 from app.services.product_item_type_service import ProductItemTypeService
@@ -61,3 +62,9 @@ def get_product_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> ProductService:
     return ProductService(db)
+
+
+def get_collection_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CollectionService:
+    return CollectionService(db)
