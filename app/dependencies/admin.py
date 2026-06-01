@@ -13,6 +13,7 @@ from app.models.user import User
 from app.services.labour_charge_service import LabourChargeService
 from app.services.product_item_service import ProductItemService
 from app.services.product_item_type_service import ProductItemTypeService
+from app.services.product_service import ProductService
 from app.services.tax_charge_service import TaxChargeService
 from app.services.utility_charge_service import UtilityChargeService
 
@@ -54,3 +55,9 @@ def get_tax_charge_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> TaxChargeService:
     return TaxChargeService(db)
+
+
+def get_product_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ProductService:
+    return ProductService(db)
