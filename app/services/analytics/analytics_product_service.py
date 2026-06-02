@@ -15,7 +15,9 @@ from app.schemas.analytics import (
 )
 from app.services.analytics._common import (
     date_range_response,
+    previous_period,
     snapshot_margin_percentage,
+    trend_delta_percentage,
     to_optional_date,
 )
 from app.utils.analytics_date_range import resolve_analytics_date_range
@@ -45,6 +47,7 @@ class AnalyticsProductService:
             start_date=params.start_date,
             end_date=params.end_date,
         )
+        prev_range = previous_period(date_range)
         most_ordered = self.repo.fetch_product_rankings(
             date_range, limit=1, order_by="units", ascending=False
         )
@@ -57,6 +60,19 @@ class AnalyticsProductService:
         most_profitable_collection = self.repo.fetch_collection_rankings(
             date_range, limit=1, order_by="profit", ascending=False
         )
+        total_products = self.repo.fetch_total_product_units_sold(date_range)
+        total_collections = self.repo.fetch_total_collection_units_sold(date_range)
+        prev_total_products = self.repo.fetch_total_product_units_sold(prev_range)
+        prev_total_collections = self.repo.fetch_total_collection_units_sold(prev_range)
+
+        def metric(current: Decimal, previous: Decimal):
+            trend_pct, trend_dir = trend_delta_percentage(current, previous)
+            return {
+                "value": current,
+                "trend_percentage": trend_pct,
+                "trend_direction": trend_dir,
+            }
+
         return ProductAnalyticsKpiResponse(
             date_range=date_range_response(date_range),
             most_ordered_product_name=(
@@ -75,8 +91,8 @@ class AnalyticsProductService:
                 if most_profitable_collection
                 else None
             ),
-            total_products_sold=self.repo.fetch_total_product_units_sold(date_range),
-            total_collections_sold=self.repo.fetch_total_collection_units_sold(date_range),
+            total_products_sold=metric(total_products, prev_total_products),
+            total_collections_sold=metric(total_collections, prev_total_collections),
         )
 
     def get_insights(self, params: AnalyticsQueryParams) -> ProductAnalyticsInsightsResponse:

@@ -13,6 +13,7 @@ from app.models.collection_item_line import CollectionItemLine
 from app.models.collection_product_line import CollectionProductLine
 from app.models.product_item import ProductItem
 from app.repositories.collection_repository import CollectionRepository
+from app.repositories.collection_package_repository import CollectionPackageRepository
 from app.repositories.product_item_repository import ProductItemRepository
 from app.repositories.product_repository import ProductRepository
 from app.schemas.collection import (
@@ -20,12 +21,13 @@ from app.schemas.collection import (
     CollectionCostPreviewRequest,
     CollectionCreate,
     CollectionDetailResponse,
+    CollectionListParams,
     CollectionItemLineInput,
     CollectionProductLineInput,
     CollectionSummaryResponse,
     CollectionUpdate,
 )
-from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.schemas.pagination import PaginatedResponse
 from app.schemas.product import AttachedChargeSummary
 from app.services.collection_cost_service import (
     calculate_breakdown_for_collection,
@@ -40,6 +42,7 @@ class CollectionService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.collections = CollectionRepository(db)
+        self.collection_packages = CollectionPackageRepository(db)
         self.products = ProductRepository(db)
         self.product_items = ProductItemRepository(db)
 
@@ -50,6 +53,7 @@ class CollectionService:
         collection = Collection(
             name=payload.name,
             description=payload.description,
+            package_id=self._resolve_package(payload.package_id).id,
             selling_price=payload.selling_price,
             buffer_amount=payload.buffer_amount,
             is_active=payload.is_active,
@@ -75,13 +79,14 @@ class CollectionService:
             raise NotFoundError("Collection not found")
         return self._to_detail_response(collection)
 
-    def list(self, params: PaginationParams) -> PaginatedResponse[CollectionSummaryResponse]:
+    def list(self, params: CollectionListParams) -> PaginatedResponse[CollectionSummaryResponse]:
         items, total = self.collections.list_paginated(
             page=params.page,
             page_size=params.page_size,
             search=params.search,
             sort_by=params.sort_by,
             sort_order=params.sort_order,
+            package_id=params.package_id,
         )
         return PaginatedResponse(
             items=[CollectionSummaryResponse.model_validate(item) for item in items],
@@ -124,6 +129,8 @@ class CollectionService:
 
         if payload.description is not None:
             collection.description = payload.description
+        if payload.package_id is not None:
+            collection.package_id = self._resolve_package(payload.package_id).id
         if payload.selling_price is not None:
             collection.selling_price = payload.selling_price
         if payload.buffer_amount is not None:
@@ -382,9 +389,11 @@ class CollectionService:
             id=collection.id,
             name=collection.name,
             description=collection.description,
+            package_id=collection.package_id,
             selling_price=collection.selling_price,
             buffer_amount=collection.buffer_amount,
             is_active=collection.is_active,
+            is_public=collection.is_public,
             created_at=collection.created_at,
             updated_at=collection.updated_at,
             product_lines=breakdown.products.lines,
@@ -392,8 +401,17 @@ class CollectionService:
             utility_charges=[self._charge_summary(c) for c in collection.utility_charges],
             labour_charges=[self._charge_summary(c) for c in collection.labour_charges],
             tax_charges=[self._charge_summary(c) for c in collection.tax_charges],
+            package=collection.package,
             cost_breakdown=breakdown,
         )
+
+    def _resolve_package(self, package_id: uuid.UUID):
+        package = self.collection_packages.get_by_id(package_id)
+        if not package:
+            raise NotFoundError("Collection package not found")
+        if not package.is_active:
+            raise ValidationError(f"Collection package is inactive: {package.name}")
+        return package
 
     @staticmethod
     def _charge_summary(charge) -> AttachedChargeSummary:

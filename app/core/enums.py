@@ -138,3 +138,5 @@ class PurchasePlanningStatus(str, enum.Enum):
     NOT_PLANNED = "not_planned"
     PLANNED = "planned"
     ORDERED = "ordered"
+
+

@@ -76,7 +76,9 @@ def calculate_collection_cost_breakdown(
 
     for line in product_lines:
         product_breakdown = calculate_breakdown_for_product(line.product)
-        unit_total = product_breakdown.total_cost
+        # Collection product quantities represent product units (cookies), so
+        # contribution must use per-unit product cost, not full batch cost.
+        unit_total = product_breakdown.cost_per_unit
         product_breakdown_lines.append(
             build_collection_product_line_response(line, unit_total_cost=unit_total),
         )

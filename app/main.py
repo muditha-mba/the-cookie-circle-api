@@ -11,7 +11,9 @@ from app.routers.analytics import router as analytics_router
 from app.routers.auth import router as auth_router
 from app.routers.business_settings import router as business_settings_router
 from app.routers.collections import router as collections_router
+from app.routers.collection_packages import router as collection_packages_router
 from app.routers.customers import router as customers_router
+from app.routers.dashboard import router as dashboard_router
 from app.routers.delivery_areas import router as delivery_areas_router
 from app.routers.orders import router as orders_router
 from app.routers.production import router as production_router
@@ -50,8 +52,10 @@ def create_app() -> FastAPI:
     app.include_router(tax_charges_router, prefix=settings.api_v1_prefix)
     app.include_router(products_router, prefix=settings.api_v1_prefix)
     app.include_router(collections_router, prefix=settings.api_v1_prefix)
+    app.include_router(collection_packages_router, prefix=settings.api_v1_prefix)
     app.include_router(business_settings_router, prefix=settings.api_v1_prefix)
     app.include_router(customers_router, prefix=settings.api_v1_prefix)
+    app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
     app.include_router(delivery_areas_router, prefix=settings.api_v1_prefix)
     app.include_router(orders_router, prefix=settings.api_v1_prefix)
     app.include_router(production_router, prefix=settings.api_v1_prefix)

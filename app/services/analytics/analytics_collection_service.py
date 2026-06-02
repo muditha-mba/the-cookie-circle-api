@@ -11,6 +11,12 @@ from app.schemas.analytics import (
     CollectionAnalyticsInsightItem,
     CollectionAnalyticsInsightsResponse,
     CollectionAnalyticsKpiResponse,
+    CollectionPackageAnalyticsInsightItem,
+    CollectionPackageAnalyticsInsightsResponse,
+    CollectionPackageAnalyticsKpisResponse,
+    CollectionPackageAnalyticsPerformanceResponse,
+    CollectionPackageAnalyticsRow,
+    CollectionPackageKpiMetric,
     CollectionAnalyticsRow,
     CollectionKpiMetric,
     CollectionTrendDataPoint,
@@ -19,8 +25,10 @@ from app.schemas.analytics import (
 )
 from app.services.analytics._common import (
     date_range_response,
+    previous_period,
     safe_divide,
     snapshot_margin_percentage,
+    trend_delta_percentage,
     to_optional_date,
 )
 from app.utils.analytics_date_range import AnalyticsDateRange, resolve_analytics_date_range
@@ -29,8 +37,13 @@ MONEY = Decimal("0.01")
 QTY = Decimal("0.0001")
 
 
-def _kpi_metric(value: Decimal) -> CollectionKpiMetric:
-    return CollectionKpiMetric(value=value)
+def _kpi_metric(value: Decimal, previous: Decimal) -> CollectionKpiMetric:
+    trend_pct, trend_dir = trend_delta_percentage(value, previous)
+    return CollectionKpiMetric(
+        value=value,
+        trend_percentage=trend_pct,
+        trend_direction=trend_dir,
+    )
 
 
 class AnalyticsCollectionService:
@@ -46,17 +59,23 @@ class AnalyticsCollectionService:
             end_date=params.end_date,
         )
         agg = self.repo.fetch_collection_kpi_aggregate(date_range)
+        prev = self.repo.fetch_collection_kpi_aggregate(previous_period(date_range))
         avg_order_value = safe_divide(agg.total_revenue, agg.collection_order_count)
+        prev_avg_order_value = safe_divide(prev.total_revenue, prev.collection_order_count)
         avg_margin = snapshot_margin_percentage(agg.total_revenue, agg.total_profit)
+        prev_avg_margin = snapshot_margin_percentage(prev.total_revenue, prev.total_profit)
 
         return CollectionAnalyticsKpiResponse(
             date_range=date_range_response(date_range),
-            total_collection_revenue=_kpi_metric(agg.total_revenue),
-            total_collection_profit=_kpi_metric(agg.total_profit),
-            collections_sold=_kpi_metric(agg.total_units),
-            average_collection_order_value=_kpi_metric(avg_order_value),
-            average_collection_margin_percentage=_kpi_metric(avg_margin),
-            active_collections_sold=_kpi_metric(Decimal(agg.active_collections)),
+            total_collection_revenue=_kpi_metric(agg.total_revenue, prev.total_revenue),
+            total_collection_profit=_kpi_metric(agg.total_profit, prev.total_profit),
+            collections_sold=_kpi_metric(agg.total_units, prev.total_units),
+            average_collection_order_value=_kpi_metric(avg_order_value, prev_avg_order_value),
+            average_collection_margin_percentage=_kpi_metric(avg_margin, prev_avg_margin),
+            active_collections_sold=_kpi_metric(
+                Decimal(agg.active_collections),
+                Decimal(prev.active_collections),
+            ),
         )
 
     def get_insights(self, params: AnalyticsQueryParams) -> CollectionAnalyticsInsightsResponse:
@@ -172,6 +191,114 @@ class AnalyticsCollectionService:
     def get_order_trends(self, params: AnalyticsQueryParams) -> CollectionTrendSeriesResponse:
         return self._trends(params)
 
+    def get_package_kpis(self, params: AnalyticsQueryParams) -> CollectionPackageAnalyticsKpisResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        rows = self._package_rows(date_range)
+
+        highest_revenue = max(rows, key=lambda row: row.revenue_snapshot, default=None)
+        most_profitable = max(rows, key=lambda row: row.profit_snapshot, default=None)
+        highest_margin = max(rows, key=lambda row: row.average_margin_percentage, default=None)
+        most_ordered = max(rows, key=lambda row: Decimal(row.order_count), default=None)
+        most_sold = max(rows, key=lambda row: row.units_sold, default=None)
+
+        return CollectionPackageAnalyticsKpisResponse(
+            date_range=date_range_response(date_range),
+            highest_revenue_package=self._package_kpi_metric(
+                highest_revenue,
+                highest_revenue.revenue_snapshot if highest_revenue else Decimal("0"),
+            ),
+            most_profitable_package=self._package_kpi_metric(
+                most_profitable,
+                most_profitable.profit_snapshot if most_profitable else Decimal("0"),
+            ),
+            highest_margin_package=self._package_kpi_metric(
+                highest_margin,
+                highest_margin.average_margin_percentage if highest_margin else Decimal("0"),
+            ),
+            most_ordered_package=self._package_kpi_metric(
+                most_ordered,
+                Decimal(most_ordered.order_count if most_ordered else 0),
+            ),
+            most_sold_package=self._package_kpi_metric(
+                most_sold,
+                most_sold.units_sold if most_sold else Decimal("0"),
+            ),
+            active_package_types=CollectionPackageKpiMetric(
+                package_name=None,
+                value=Decimal(len(rows)),
+            ),
+        )
+
+    def get_package_insights(
+        self,
+        params: AnalyticsQueryParams,
+    ) -> CollectionPackageAnalyticsInsightsResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        rows = self._package_rows(date_range)
+        by_profit = max(rows, key=lambda row: row.profit_snapshot, default=None)
+        by_revenue_share = max(rows, key=lambda row: row.revenue_share_percentage, default=None)
+        by_units = max(rows, key=lambda row: row.units_sold, default=None)
+        by_margin = max(rows, key=lambda row: row.average_margin_percentage, default=None)
+
+        items = [
+            self._package_insight(
+                "best_performing_package",
+                "Best Performing Package",
+                by_profit,
+                "Profit",
+                lambda row: f"Rs {row.profit_snapshot:,.2f}",
+            ),
+            self._package_insight(
+                "largest_revenue_contributor_package",
+                "Largest Revenue Contributor",
+                by_revenue_share,
+                "Revenue share",
+                lambda row: f"{row.revenue_share_percentage}%",
+            ),
+            self._package_insight(
+                "most_popular_package",
+                "Most Popular Package",
+                by_units,
+                "Units sold",
+                lambda row: f"{row.units_sold.normalize():g}",
+            ),
+            self._package_insight(
+                "highest_margin_package",
+                "Highest Margin Package",
+                by_margin,
+                "Margin",
+                lambda row: f"{row.average_margin_percentage}%",
+            ),
+        ]
+
+        return CollectionPackageAnalyticsInsightsResponse(
+            date_range=date_range_response(date_range),
+            items=items,
+        )
+
+    def get_package_performance(
+        self,
+        params: AnalyticsQueryParams,
+    ) -> CollectionPackageAnalyticsPerformanceResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        rows = self._package_rows(date_range)
+        return CollectionPackageAnalyticsPerformanceResponse(
+            date_range=date_range_response(date_range),
+            items=rows[: params.limit],
+        )
+
     def _trends(self, params: AnalyticsQueryParams) -> CollectionTrendSeriesResponse:
         date_range = resolve_analytics_date_range(
             preset=params.preset,
@@ -215,6 +342,61 @@ class AnalyticsCollectionService:
         return RankedCollectionsResponse(
             date_range=date_range_response(date_range),
             items=[self._row(row) for row in rows],
+        )
+
+    def _package_rows(
+        self,
+        date_range: AnalyticsDateRange,
+    ) -> list[CollectionPackageAnalyticsRow]:
+        rows = self.repo.fetch_collection_package_performance(date_range)
+        total_revenue = sum((Decimal(row["revenue_snapshot"]) for row in rows), Decimal("0"))
+        items: list[CollectionPackageAnalyticsRow] = []
+        for row in rows:
+            revenue = Decimal(row["revenue_snapshot"])
+            profit = Decimal(row["profit_snapshot"])
+            order_count = int(row["order_count"])
+            avg_order_value = safe_divide(revenue, Decimal(order_count))
+            items.append(
+                CollectionPackageAnalyticsRow(
+                    package_id=row["package_id"],  # type: ignore[arg-type]
+                    package_code=str(row["package_code"]),
+                    package_name=str(row["package_name"]),
+                    revenue_snapshot=revenue.quantize(MONEY),
+                    cost_snapshot=Decimal(row["cost_snapshot"]).quantize(MONEY),  # type: ignore[arg-type]
+                    profit_snapshot=profit.quantize(MONEY),
+                    average_margin_percentage=snapshot_margin_percentage(revenue, profit),
+                    order_count=order_count,
+                    units_sold=Decimal(row["units_sold"]).quantize(QTY),  # type: ignore[arg-type]
+                    average_order_value=avg_order_value.quantize(MONEY),
+                    revenue_share_percentage=safe_divide(revenue * Decimal("100"), total_revenue),
+                ),
+            )
+        return items
+
+    @staticmethod
+    def _package_kpi_metric(
+        row: CollectionPackageAnalyticsRow | None,
+        value: Decimal,
+    ) -> CollectionPackageKpiMetric:
+        return CollectionPackageKpiMetric(
+            package_name=row.package_name if row else None,
+            value=value,
+        )
+
+    @staticmethod
+    def _package_insight(
+        insight_id: str,
+        title: str,
+        row: CollectionPackageAnalyticsRow | None,
+        metric_label: str,
+        formatter,
+    ) -> CollectionPackageAnalyticsInsightItem:
+        return CollectionPackageAnalyticsInsightItem(
+            id=insight_id,
+            title=title,
+            name=row.package_name if row else None,
+            metric_label=metric_label,
+            metric_value=formatter(row) if row else "—",
         )
 
     def _fastest_growing_collection(
@@ -286,6 +468,7 @@ class AnalyticsCollectionService:
         return CollectionAnalyticsRow(
             collection_id=row["collection_id"],  # type: ignore[arg-type]
             name=str(row["collection_name_snapshot"]),
+            package_name=str(row["package_name"]) if row.get("package_name") else None,
             units_sold=units.quantize(QTY),
             revenue_snapshot=revenue,
             cost_snapshot=Decimal(row["cost_snapshot"]).quantize(MONEY),  # type: ignore[arg-type]

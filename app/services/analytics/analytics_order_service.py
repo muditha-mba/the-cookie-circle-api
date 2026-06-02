@@ -12,20 +12,31 @@ from app.repositories.analytics_repository import (
 from app.schemas.analytics import (
     AnalyticsKpiMetric,
     AnalyticsQueryParams,
+    OrderCustomerBehaviourResponse,
+    OrderDeliveryAreaPerformanceResponse,
     OrderAnalyticsInsightItem,
     OrderAnalyticsInsightsResponse,
     OrderAnalyticsKpiResponse,
+    OrderLifecycleTrendPoint,
+    OrderLifecycleTrendResponse,
     OrderAnalyticsPerformanceResponse,
     OrderAnalyticsPerformanceRow,
     OrderDistributionItem,
     OrderDistributionResponse,
+    OrderPaymentMethodPerformanceResponse,
+    OrderPaymentMethodPerformanceRow,
     OrderTrendPoint,
     OrderTrendSeriesResponse,
     TopOrderRow,
     TopOrdersResponse,
     TrendSeriesResponse,
 )
-from app.services.analytics._common import date_range_response, safe_divide
+from app.services.analytics._common import (
+    date_range_response,
+    previous_period,
+    safe_divide,
+    trend_delta_percentage,
+)
 from app.services.analytics.analytics_revenue_service import AnalyticsRevenueService
 from app.utils.analytics_date_range import resolve_analytics_date_range
 
@@ -62,8 +73,13 @@ SOURCE_BUCKETS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _kpi_metric(value: Decimal) -> AnalyticsKpiMetric:
-    return AnalyticsKpiMetric(value=value)
+def _kpi_metric(value: Decimal, previous: Decimal) -> AnalyticsKpiMetric:
+    trend_pct, trend_dir = trend_delta_percentage(value, previous)
+    return AnalyticsKpiMetric(
+        value=value,
+        trend_percentage=trend_pct,
+        trend_direction=trend_dir,
+    )
 
 
 def _payment_method_label(method: str) -> str:
@@ -147,26 +163,41 @@ class AnalyticsOrderService:
             end_date=params.end_date,
         )
         agg = self.repo.fetch_order_kpi_aggregate(date_range)
-        fulfilment_denominator = agg.total_orders - agg.cancelled_orders
-        fulfillment_rate = safe_divide(
-            Decimal(agg.completed_orders * 100),
-            fulfilment_denominator,
-        )
-        delivery_success = safe_divide(
+        prev = self.repo.fetch_order_kpi_aggregate(previous_period(date_range))
+        completion_rate = safe_divide(
             Decimal(agg.completed_orders * 100),
             agg.total_orders,
         )
+        prev_completion_rate = safe_divide(
+            Decimal(prev.completed_orders * 100),
+            prev.total_orders,
+        )
         average_order_value = safe_divide(agg.total_revenue, agg.total_orders)
-        average_delivery_fee = safe_divide(agg.total_delivery_fees, agg.total_orders)
+        prev_average_order_value = safe_divide(prev.total_revenue, prev.total_orders)
+        average_profit_per_order = safe_divide(agg.total_profit, agg.total_orders)
+        prev_average_profit_per_order = safe_divide(prev.total_profit, prev.total_orders)
+        average_margin = safe_divide(agg.total_profit * Decimal("100"), agg.total_revenue)
+        prev_average_margin = safe_divide(prev.total_profit * Decimal("100"), prev.total_revenue)
 
         return OrderAnalyticsKpiResponse(
             date_range=date_range_response(date_range),
-            total_orders=_kpi_metric(Decimal(agg.total_orders)),
-            completed_orders=_kpi_metric(Decimal(agg.completed_orders)),
-            average_order_value=_kpi_metric(average_order_value),
-            fulfillment_rate=_kpi_metric(fulfillment_rate),
-            delivery_success_rate=_kpi_metric(delivery_success),
-            average_delivery_fee=_kpi_metric(average_delivery_fee),
+            total_orders=_kpi_metric(Decimal(agg.total_orders), Decimal(prev.total_orders)),
+            completed_orders=_kpi_metric(
+                Decimal(agg.completed_orders),
+                Decimal(prev.completed_orders),
+            ),
+            cancelled_orders=_kpi_metric(
+                Decimal(agg.cancelled_orders),
+                Decimal(prev.cancelled_orders),
+            ),
+            completion_rate=_kpi_metric(completion_rate, prev_completion_rate),
+            average_order_value=_kpi_metric(average_order_value, prev_average_order_value),
+            revenue_from_orders=_kpi_metric(agg.total_revenue, prev.total_revenue),
+            average_profit_per_order=_kpi_metric(
+                average_profit_per_order,
+                prev_average_profit_per_order,
+            ),
+            average_margin_percentage=_kpi_metric(average_margin, prev_average_margin),
         )
 
     def get_insights(self, params: AnalyticsQueryParams) -> OrderAnalyticsInsightsResponse:
@@ -337,6 +368,109 @@ class AnalyticsOrderService:
     def get_delivery_trends(self, params: AnalyticsQueryParams) -> OrderTrendSeriesResponse:
         return self._trend_series(params, self.repo.fetch_order_delivery_trends)
 
+    def get_lifecycle_trends(self, params: AnalyticsQueryParams) -> OrderLifecycleTrendResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        rows = self.repo.fetch_order_lifecycle_trends(date_range, params.granularity)
+        return OrderLifecycleTrendResponse(
+            date_range=date_range_response(date_range),
+            granularity=params.granularity,
+            points=[
+                OrderLifecycleTrendPoint(
+                    period_start=row["period_start"],  # type: ignore[arg-type]
+                    draft=int(row["draft"]),
+                    confirmed=int(row["confirmed"]),
+                    preparing=int(row["preparing"]),
+                    ready=int(row["ready"]),
+                    delivered=int(row["delivered"]),
+                    cancelled=int(row["cancelled"]),
+                )
+                for row in rows
+            ],
+        )
+
+    def get_delivery_area_performance(
+        self,
+        params: AnalyticsQueryParams,
+    ) -> OrderDeliveryAreaPerformanceResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        rows = self.repo.fetch_delivery_area_performance(date_range, limit=params.limit)
+        return OrderDeliveryAreaPerformanceResponse(
+            date_range=date_range_response(date_range),
+            items=[
+                {
+                    "area_name": row["area_name"],
+                    "order_count": row["order_count"],
+                    "revenue_snapshot": row["revenue_snapshot"],
+                    "delivery_fee_revenue": row["delivery_fee_revenue"],
+                    "average_delivery_fee": safe_divide(
+                        Decimal(row["delivery_fee_revenue"]),
+                        int(row["order_count"]),
+                    ),
+                }
+                for row in rows
+            ],
+        )
+
+    def get_payment_method_performance(
+        self,
+        params: AnalyticsQueryParams,
+    ) -> OrderPaymentMethodPerformanceResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        rows = self.repo.fetch_payment_method_performance(date_range)
+        return OrderPaymentMethodPerformanceResponse(
+            date_range=date_range_response(date_range),
+            items=[
+                OrderPaymentMethodPerformanceRow(
+                    payment_method=row["payment_method"],  # type: ignore[arg-type]
+                    order_count=int(row["order_count"]),
+                    revenue_snapshot=Decimal(row["revenue_snapshot"]),
+                    average_order_value=safe_divide(
+                        Decimal(row["revenue_snapshot"]),
+                        int(row["order_count"]),
+                    ),
+                )
+                for row in rows
+            ],
+        )
+
+    def get_customer_behaviour(
+        self,
+        params: AnalyticsQueryParams,
+    ) -> OrderCustomerBehaviourResponse:
+        date_range = resolve_analytics_date_range(
+            preset=params.preset,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+        row = self.repo.fetch_customer_order_behaviour(date_range)
+        repeat_rate = safe_divide(
+            Decimal(row["repeat_customers"]) * Decimal("100"),
+            int(row["total_customers"]),
+        )
+        avg_orders = safe_divide(
+            Decimal(row["total_orders"]),
+            int(row["total_customers"]),
+        )
+        return OrderCustomerBehaviourResponse(
+            date_range=date_range_response(date_range),
+            first_time_customers=int(row["first_time_customers"]),
+            returning_customers=int(row["returning_customers"]),
+            repeat_purchase_rate=repeat_rate,
+            average_orders_per_customer=avg_orders,
+        )
+
     def get_performance(
         self,
         params: AnalyticsQueryParams,
@@ -393,13 +527,26 @@ class AnalyticsOrderService:
     def _performance_row(order) -> OrderAnalyticsPerformanceRow:
         customer_name = f"{order.customer.first_name} {order.customer.last_name}".strip()
         area_name = order.delivery_area.name if order.delivery_area else None
+        package_names = sorted(
+            {
+                line.collection.package.name
+                for line in order.collection_lines
+                if line.collection and line.collection.package
+            },
+        )
+        package_type = ", ".join(package_names) if package_names else "—"
         return OrderAnalyticsPerformanceRow(
             order_id=order.id,
             order_number=order.order_number,
             customer_id=order.customer_id,
             customer_name=customer_name,
+            package_type=package_type,
+            collections_value_snapshot=order.collections_subtotal_snapshot,
+            products_value_snapshot=order.products_subtotal_snapshot,
             total_revenue_snapshot=order.total_revenue_snapshot,
+            total_cost_snapshot=order.total_cost_snapshot,
             total_profit_snapshot=order.total_profit_snapshot,
+            margin_percentage_snapshot=order.margin_percentage_snapshot,
             delivery_fee_snapshot=order.delivery_fee_snapshot,
             payment_method=order.payment_method,
             payment_status=order.payment_status,

@@ -23,7 +23,7 @@ from app.schemas.analytics import (
     OperationsUpcomingDeliveryRow,
     OperationsUpcomingWorkloadResponse,
 )
-from app.services.analytics._common import date_range_response
+from app.services.analytics._common import date_range_response, previous_period, trend_delta_percentage
 from app.services.analytics.analytics_collection_service import AnalyticsCollectionService
 from app.services.analytics.analytics_customer_service import AnalyticsCustomerService
 from app.services.analytics.analytics_kpi_service import AnalyticsKpiService
@@ -39,8 +39,13 @@ UPCOMING_SCHEDULE_LIMIT = 14
 PRODUCT_REQUIREMENT_LIMIT = 20
 
 
-def _metric(value: Decimal) -> AnalyticsKpiMetric:
-    return AnalyticsKpiMetric(value=value)
+def _metric(value: Decimal, previous: Decimal) -> AnalyticsKpiMetric:
+    trend_pct, trend_dir = trend_delta_percentage(value, previous)
+    return AnalyticsKpiMetric(
+        value=value,
+        trend_percentage=trend_pct,
+        trend_direction=trend_dir,
+    )
 
 
 class AnalyticsOperationsService:
@@ -64,7 +69,16 @@ class AnalyticsOperationsService:
             end_date=params.end_date,
         )
         core = self.core_kpis.get_core_kpis(params)
+        prev_params = params.model_copy(
+            update={
+                "preset": None,
+                "start_date": previous_period(date_range).start_date,
+                "end_date": previous_period(date_range).end_date,
+            },
+        )
+        prev_core = self.core_kpis.get_core_kpis(prev_params)
         segments = self.customers.get_segment_summary(params)
+        prev_segments = self.customers.get_segment_summary(prev_params)
         today = datetime.now(timezone.utc).date()
         upcoming_count = self.repo.count_upcoming_delivery_orders(today)
         upcoming = self.production_ux.get_upcoming_demand()
@@ -78,12 +92,18 @@ class AnalyticsOperationsService:
 
         return OperationsAnalyticsKpiResponse(
             date_range=date_range_response(date_range),
-            revenue_this_period=_metric(core.total_revenue),
-            profit_this_period=_metric(core.total_profit),
-            orders_this_period=_metric(Decimal(core.total_orders)),
-            upcoming_deliveries=_metric(Decimal(upcoming_count)),
-            active_customers=_metric(Decimal(segments.active_customers)),
-            production_workload=_metric(workload_units),
+            revenue_this_period=_metric(core.total_revenue.value, prev_core.total_revenue.value),
+            profit_this_period=_metric(core.total_profit.value, prev_core.total_profit.value),
+            orders_this_period=_metric(
+                Decimal(core.total_orders.value),
+                Decimal(prev_core.total_orders.value),
+            ),
+            upcoming_deliveries=_metric(Decimal(upcoming_count), Decimal("0")),
+            active_customers=_metric(
+                Decimal(segments.active_customers),
+                Decimal(prev_segments.active_customers),
+            ),
+            production_workload=_metric(workload_units, Decimal("0")),
         )
 
     def get_alerts(self, params: AnalyticsQueryParams) -> OperationsAlertsResponse:

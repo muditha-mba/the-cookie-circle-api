@@ -49,16 +49,24 @@ class AnalyticsOverviewResponse(BaseModel):
     categories: list[AnalyticsCategory]
 
 
+class AnalyticsKpiMetric(BaseModel):
+    """Shared KPI value with optional trend fields for period comparisons."""
+
+    value: Decimal
+    trend_percentage: Decimal | None = None
+    trend_direction: str | None = None
+
+
 class CoreKpiResponse(BaseModel):
     date_range: AnalyticsDateRangeResponse
-    total_revenue: Decimal
-    total_profit: Decimal
-    total_orders: int
-    total_customers: int
-    average_order_value: Decimal
-    repeat_customer_rate: Decimal
-    customer_lifetime_value: Decimal
-    profit_margin_percentage: Decimal
+    total_revenue: AnalyticsKpiMetric
+    total_profit: AnalyticsKpiMetric
+    total_orders: AnalyticsKpiMetric
+    total_customers: AnalyticsKpiMetric
+    average_order_value: AnalyticsKpiMetric
+    repeat_customer_rate: AnalyticsKpiMetric
+    customer_lifetime_value: AnalyticsKpiMetric
+    profit_margin_percentage: AnalyticsKpiMetric
 
 
 class TrendDataPoint(BaseModel):
@@ -88,6 +96,7 @@ class ProductAnalyticsRow(BaseModel):
 class CollectionAnalyticsRow(BaseModel):
     collection_id: UUID
     name: str
+    package_name: str | None = None
     units_sold: Decimal
     revenue_snapshot: Decimal
     cost_snapshot: Decimal
@@ -128,6 +137,55 @@ class CollectionAnalyticsInsightsResponse(BaseModel):
     items: list[CollectionAnalyticsInsightItem]
 
 
+class CollectionPackageKpiMetric(BaseModel):
+    package_name: str | None = None
+    value: Decimal
+    trend_percentage: Decimal | None = None
+    trend_direction: str | None = None
+
+
+class CollectionPackageAnalyticsKpisResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    highest_revenue_package: CollectionPackageKpiMetric
+    most_profitable_package: CollectionPackageKpiMetric
+    highest_margin_package: CollectionPackageKpiMetric
+    most_ordered_package: CollectionPackageKpiMetric
+    most_sold_package: CollectionPackageKpiMetric
+    active_package_types: CollectionPackageKpiMetric
+
+
+class CollectionPackageAnalyticsRow(BaseModel):
+    package_id: UUID | None
+    package_code: str
+    package_name: str
+    revenue_snapshot: Decimal
+    cost_snapshot: Decimal
+    profit_snapshot: Decimal
+    average_margin_percentage: Decimal
+    order_count: int
+    units_sold: Decimal
+    average_order_value: Decimal
+    revenue_share_percentage: Decimal
+
+
+class CollectionPackageAnalyticsPerformanceResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    items: list[CollectionPackageAnalyticsRow]
+
+
+class CollectionPackageAnalyticsInsightItem(BaseModel):
+    id: str
+    title: str
+    name: str | None
+    metric_label: str
+    metric_value: str
+
+
+class CollectionPackageAnalyticsInsightsResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    items: list[CollectionPackageAnalyticsInsightItem]
+
+
 class CollectionTrendDataPoint(BaseModel):
     period_start: date
     revenue: Decimal
@@ -148,8 +206,8 @@ class ProductAnalyticsKpiResponse(BaseModel):
     most_profitable_product_name: str | None
     most_ordered_collection_name: str | None
     most_profitable_collection_name: str | None
-    total_products_sold: Decimal
-    total_collections_sold: Decimal
+    total_products_sold: AnalyticsKpiMetric
+    total_collections_sold: AnalyticsKpiMetric
 
 
 class ProductAnalyticsInsightItem(BaseModel):
@@ -201,12 +259,12 @@ class CustomerSegmentSummaryResponse(BaseModel):
 
 class CustomerAnalyticsKpiResponse(BaseModel):
     date_range: AnalyticsDateRangeResponse
-    total_customers: int
-    new_customers: int
-    returning_customers: int
-    vip_customers: int
-    inactive_customers: int
-    average_customer_lifetime_value: Decimal
+    total_customers: AnalyticsKpiMetric
+    new_customers: AnalyticsKpiMetric
+    returning_customers: AnalyticsKpiMetric
+    vip_customers: AnalyticsKpiMetric
+    inactive_customers: AnalyticsKpiMetric
+    average_customer_lifetime_value: AnalyticsKpiMetric
 
 
 class CustomerAnalyticsRow(BaseModel):
@@ -312,12 +370,12 @@ class ProductionDemandListResponse(BaseModel):
 
 class ProductionAnalyticsKpiResponse(BaseModel):
     date_range: AnalyticsDateRangeResponse
-    total_products_produced: Decimal
-    total_collections_produced: Decimal
-    total_ingredient_consumption_cost: Decimal
-    total_packaging_consumption_cost: Decimal
-    total_production_batches: int
-    average_batch_size: Decimal
+    total_products_produced: AnalyticsKpiMetric
+    total_collections_produced: AnalyticsKpiMetric
+    total_ingredient_consumption_cost: AnalyticsKpiMetric
+    total_packaging_consumption_cost: AnalyticsKpiMetric
+    total_production_batches: AnalyticsKpiMetric
+    average_batch_size: AnalyticsKpiMetric
 
 
 class ProductionAnalyticsInsightItem(BaseModel):
@@ -377,22 +435,16 @@ class TopOrdersResponse(BaseModel):
     items: list[TopOrderRow]
 
 
-class AnalyticsKpiMetric(BaseModel):
-    """Shared KPI value with optional trend fields for future period comparisons."""
-
-    value: Decimal
-    trend_percentage: Decimal | None = None
-    trend_direction: str | None = None
-
-
 class OrderAnalyticsKpiResponse(BaseModel):
     date_range: AnalyticsDateRangeResponse
     total_orders: AnalyticsKpiMetric
     completed_orders: AnalyticsKpiMetric
+    cancelled_orders: AnalyticsKpiMetric
+    completion_rate: AnalyticsKpiMetric
     average_order_value: AnalyticsKpiMetric
-    fulfillment_rate: AnalyticsKpiMetric
-    delivery_success_rate: AnalyticsKpiMetric
-    average_delivery_fee: AnalyticsKpiMetric
+    revenue_from_orders: AnalyticsKpiMetric
+    average_profit_per_order: AnalyticsKpiMetric
+    average_margin_percentage: AnalyticsKpiMetric
 
 
 class OrderAnalyticsInsightItem(BaseModel):
@@ -432,13 +484,67 @@ class OrderTrendSeriesResponse(BaseModel):
     points: list[OrderTrendPoint]
 
 
+class OrderLifecycleTrendPoint(BaseModel):
+    period_start: date
+    draft: int
+    confirmed: int
+    preparing: int
+    ready: int
+    delivered: int
+    cancelled: int
+
+
+class OrderLifecycleTrendResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    granularity: TrendGranularity
+    points: list[OrderLifecycleTrendPoint]
+
+
+class OrderDeliveryAreaPerformanceRow(BaseModel):
+    area_name: str
+    order_count: int
+    revenue_snapshot: Decimal
+    delivery_fee_revenue: Decimal
+    average_delivery_fee: Decimal
+
+
+class OrderDeliveryAreaPerformanceResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    items: list[OrderDeliveryAreaPerformanceRow]
+
+
+class OrderPaymentMethodPerformanceRow(BaseModel):
+    payment_method: PaymentMethod
+    order_count: int
+    revenue_snapshot: Decimal
+    average_order_value: Decimal
+
+
+class OrderPaymentMethodPerformanceResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    items: list[OrderPaymentMethodPerformanceRow]
+
+
+class OrderCustomerBehaviourResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    first_time_customers: int
+    returning_customers: int
+    repeat_purchase_rate: Decimal
+    average_orders_per_customer: Decimal
+
+
 class OrderAnalyticsPerformanceRow(BaseModel):
     order_id: UUID
     order_number: str
     customer_id: UUID
     customer_name: str
+    package_type: str
+    collections_value_snapshot: Decimal
+    products_value_snapshot: Decimal
     total_revenue_snapshot: Decimal
+    total_cost_snapshot: Decimal
     total_profit_snapshot: Decimal
+    margin_percentage_snapshot: Decimal
     delivery_fee_snapshot: Decimal
     payment_method: PaymentMethod
     payment_status: PaymentStatus
@@ -540,3 +646,40 @@ class OperationsBusinessHealthResponse(BaseModel):
     date_range: AnalyticsDateRangeResponse
     highlights: list[OperationsBusinessHealthItem]
     summary_rows: list[OperationsExecutiveSummaryRow]
+
+
+class ExecutiveOverviewHighlightsResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    top_product: str | None
+    top_collection: str | None
+    top_package: str | None
+    top_customer: str | None
+    highest_revenue_delivery_area: str | None
+    most_used_payment_method: str | None
+
+
+class ExecutiveRevenueContributionItem(BaseModel):
+    name: str
+    value: Decimal
+
+
+class ExecutiveRevenueContributionResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    items: list[ExecutiveRevenueContributionItem]
+
+
+class ExecutiveOperationsSnapshotResponse(BaseModel):
+    upcoming_production_batch: date | None
+    upcoming_orders: int
+    orders_awaiting_preparation: int
+    orders_awaiting_delivery: int
+
+
+class ExecutiveOverviewKpisResponse(BaseModel):
+    date_range: AnalyticsDateRangeResponse
+    total_revenue: AnalyticsKpiMetric
+    total_profit: AnalyticsKpiMetric
+    total_orders: AnalyticsKpiMetric
+    total_customers: AnalyticsKpiMetric
+    average_order_value: AnalyticsKpiMetric
+    average_margin_percentage: AnalyticsKpiMetric

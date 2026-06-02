@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.pagination import PaginationParams
+from app.schemas.collection_package import CollectionPackageResponse
 from app.schemas.product import (
     AdditionalChargesBreakdown,
     AttachedChargeSummary,
@@ -32,6 +34,7 @@ class CollectionBase(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    package_id: UUID
     selling_price: Decimal = Field(ge=0)
     buffer_amount: Decimal = Field(default=Decimal("0"), ge=0)
     is_active: bool = True
@@ -58,6 +61,7 @@ class CollectionUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    package_id: UUID | None = None
     selling_price: Decimal | None = Field(default=None, ge=0)
     buffer_amount: Decimal | None = Field(default=None, ge=0)
     is_active: bool | None = None
@@ -86,6 +90,12 @@ class CollectionCostPreviewRequest(BaseModel):
     utility_charge_ids: list[UUID] = Field(default_factory=list)
     labour_charge_ids: list[UUID] = Field(default_factory=list)
     tax_charge_ids: list[UUID] = Field(default_factory=list)
+
+
+class CollectionListParams(PaginationParams):
+    """Collections list query parameters."""
+
+    package_id: UUID | None = None
 
 
 class CollectionSummaryResponse(CollectionBase):
@@ -160,4 +170,5 @@ class CollectionDetailResponse(CollectionSummaryResponse):
     utility_charges: list[AttachedChargeSummary]
     labour_charges: list[AttachedChargeSummary]
     tax_charges: list[AttachedChargeSummary]
+    package: CollectionPackageResponse
     cost_breakdown: CollectionCostBreakdown

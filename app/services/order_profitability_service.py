@@ -69,20 +69,30 @@ class OrderProfitabilityService:
 
         products_subtotal = _money(
             sum(
-                line.product_selling_price_snapshot * line.quantity for line in built_products
+                (line.product_selling_price_snapshot * line.quantity for line in built_products),
+                Decimal("0"),
             ),
         )
         collections_subtotal = _money(
             sum(
-                line.collection_selling_price_snapshot * line.quantity
-                for line in built_collections
+                (
+                    line.collection_selling_price_snapshot * line.quantity
+                    for line in built_collections
+                ),
+                Decimal("0"),
             ),
         )
         products_cost = _money(
-            sum(line.product_cost_snapshot * line.quantity for line in built_products),
+            sum(
+                (line.product_cost_snapshot * line.quantity for line in built_products),
+                Decimal("0"),
+            ),
         )
         collections_cost = _money(
-            sum(line.collection_cost_snapshot * line.quantity for line in built_collections),
+            sum(
+                (line.collection_cost_snapshot * line.quantity for line in built_collections),
+                Decimal("0"),
+            ),
         )
 
         delivery = _money(delivery_fee)
@@ -199,8 +209,14 @@ class OrderProfitabilityService:
                 f"Unable to calculate product cost breakdown for '{product.name}'",
             ) from exc
 
-        unit_price = _money(product.selling_price)
-        unit_cost = _money(breakdown.total_cost)
+        if product.yield_quantity <= 0:
+            raise ValidationError(f"Product '{product.name}' has invalid yield quantity")
+
+        # Product selling_price and breakdown.total_cost are batch-level values.
+        # Order line snapshots must store per-unit values to avoid overstating
+        # revenue/cost when quantity represents units sold.
+        unit_price = _money(product.selling_price / product.yield_quantity)
+        unit_cost = _money(breakdown.cost_per_unit)
         unit_profit = _money(unit_price - unit_cost)
 
         return OrderProductLine(

@@ -11,10 +11,11 @@ from app.schemas.collection import (
     CollectionCostPreviewRequest,
     CollectionCreate,
     CollectionDetailResponse,
+    CollectionListParams,
     CollectionSummaryResponse,
     CollectionUpdate,
 )
-from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.schemas.pagination import PaginatedResponse
 from app.services.collection_service import CollectionService
 
 router = APIRouter(
@@ -26,7 +27,7 @@ router = APIRouter(
 
 @router.get("", response_model=PaginatedResponse[CollectionSummaryResponse])
 def list_collections(
-    params: Annotated[PaginationParams, Depends()],
+    params: Annotated[CollectionListParams, Depends()],
     service: Annotated[CollectionService, Depends(get_collection_service)],
 ) -> PaginatedResponse[CollectionSummaryResponse]:
     """List collections with pagination."""

@@ -21,7 +21,12 @@ from app.schemas.analytics import (
     MarketingSourcePerformanceResponse,
     MarketingSourcePerformanceRow,
 )
-from app.services.analytics._common import date_range_response, safe_divide
+from app.services.analytics._common import (
+    date_range_response,
+    previous_period,
+    safe_divide,
+    trend_delta_percentage,
+)
 from app.services.customer_segmentation import CustomerSegmentationConfig
 from app.utils.analytics_date_range import resolve_analytics_date_range
 
@@ -142,6 +147,13 @@ class AnalyticsCustomerService:
             start_date=params.start_date,
             end_date=params.end_date,
         )
+        prev_params = params.model_copy(
+            update={
+                "preset": None,
+                "start_date": previous_period(date_range).start_date,
+                "end_date": previous_period(date_range).end_date,
+            },
+        )
         growth = self.get_customer_growth(params)
         segment_summary = self.get_segment_summary(params)
         segment_map = {item.segment: item.count for item in segment_summary.segments}
@@ -160,14 +172,56 @@ class AnalyticsCustomerService:
         else:
             avg_clv = Decimal("0.00")
 
+        prev_growth = self.get_customer_growth(prev_params)
+        prev_segment_summary = self.get_segment_summary(prev_params)
+        prev_segment_map = {item.segment: item.count for item in prev_segment_summary.segments}
+        prev_performance = self.repo.fetch_customers_performance_in_range(
+            previous_period(date_range),
+            limit=min(params.limit, 500),
+            config=self.segmentation_config,
+        )
+        if prev_performance:
+            prev_spend_sum = sum(
+                Decimal(row["lifetime_spend"])  # type: ignore[arg-type]
+                for row in prev_performance
+            )
+            prev_avg_clv = safe_divide(prev_spend_sum, len(prev_performance))
+        else:
+            prev_avg_clv = Decimal("0.00")
+
+        def metric(current: Decimal, previous: Decimal):
+            trend_pct, trend_dir = trend_delta_percentage(current, previous)
+            return {
+                "value": current,
+                "trend_percentage": trend_pct,
+                "trend_direction": trend_dir,
+            }
+
+        current_total_customers = Decimal(self.repo.count_total_customers_as_of(date_range))
+        prev_total_customers = Decimal(
+            self.repo.count_total_customers_as_of(previous_period(date_range)),
+        )
+
         return CustomerAnalyticsKpiResponse(
             date_range=date_range_response(date_range),
-            total_customers=self.repo.count_total_customers_as_of(date_range),
-            new_customers=growth.total_new_customers,
-            returning_customers=segment_map.get(CustomerSegment.RETURNING, 0),
-            vip_customers=segment_map.get(CustomerSegment.VIP, 0),
-            inactive_customers=segment_map.get(CustomerSegment.INACTIVE, 0),
-            average_customer_lifetime_value=avg_clv,
+            total_customers=metric(current_total_customers, prev_total_customers),
+            new_customers=metric(
+                Decimal(growth.total_new_customers),
+                Decimal(prev_growth.total_new_customers),
+            ),
+            returning_customers=metric(
+                Decimal(segment_map.get(CustomerSegment.RETURNING, 0)),
+                Decimal(prev_segment_map.get(CustomerSegment.RETURNING, 0)),
+            ),
+            vip_customers=metric(
+                Decimal(segment_map.get(CustomerSegment.VIP, 0)),
+                Decimal(prev_segment_map.get(CustomerSegment.VIP, 0)),
+            ),
+            inactive_customers=metric(
+                Decimal(segment_map.get(CustomerSegment.INACTIVE, 0)),
+                Decimal(prev_segment_map.get(CustomerSegment.INACTIVE, 0)),
+            ),
+            average_customer_lifetime_value=metric(avg_clv, prev_avg_clv),
         )
 
     def get_performance(self, params: AnalyticsQueryParams) -> CustomerAnalyticsListResponse:

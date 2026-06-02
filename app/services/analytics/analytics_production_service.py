@@ -24,7 +24,12 @@ from app.schemas.analytics import (
     ProductionVolumePoint,
     ProductionVolumeResponse,
 )
-from app.services.analytics._common import date_range_response, safe_divide
+from app.services.analytics._common import (
+    date_range_response,
+    previous_period,
+    safe_divide,
+    trend_delta_percentage,
+)
 from app.services.production_planning_service import (
     IngredientDemand,
     PackagingDemand,
@@ -123,14 +128,64 @@ class AnalyticsProductionService:
         total_orders = sum(count for _, count, _ in batches)
         avg_batch = safe_divide(Decimal(total_orders), batch_count) if batch_count else Decimal("0")
 
+        prev_range = previous_period(date_range)
+        prev_params = params.model_copy(
+            update={
+                "preset": None,
+                "start_date": prev_range.start_date,
+                "end_date": prev_range.end_date,
+            },
+        )
+        prev_volume = self.get_production_volume(prev_params)
+        prev_total_products = sum((point.total_products for point in prev_volume.points), Decimal("0"))
+        prev_total_collections = sum(
+            (point.total_collections for point in prev_volume.points),
+            Decimal("0"),
+        )
+        prev_ingredients = self._aggregate_demand(prev_range, ingredient=True)
+        prev_packaging = self._aggregate_demand(prev_range, ingredient=False)
+        prev_ingredient_cost = sum((row.estimated_cost for row in prev_ingredients), Decimal("0"))
+        prev_packaging_cost = sum((row.estimated_cost for row in prev_packaging), Decimal("0"))
+        prev_batches = self.repo.fetch_batch_volume(prev_range)
+        prev_batch_count = len(prev_batches)
+        prev_total_orders = sum(count for _, count, _ in prev_batches)
+        prev_avg_batch = (
+            safe_divide(Decimal(prev_total_orders), prev_batch_count)
+            if prev_batch_count
+            else Decimal("0")
+        )
+
+        def metric(current: Decimal, previous: Decimal):
+            trend_pct, trend_dir = trend_delta_percentage(current, previous)
+            return {
+                "value": current,
+                "trend_percentage": trend_pct,
+                "trend_direction": trend_dir,
+            }
+
         return ProductionAnalyticsKpiResponse(
             date_range=date_range_response(date_range),
-            total_products_produced=total_products.quantize(QTY),
-            total_collections_produced=total_collections.quantize(QTY),
-            total_ingredient_consumption_cost=ingredient_cost.quantize(MONEY),
-            total_packaging_consumption_cost=packaging_cost.quantize(MONEY),
-            total_production_batches=batch_count,
-            average_batch_size=avg_batch,
+            total_products_produced=metric(
+                total_products.quantize(QTY),
+                prev_total_products.quantize(QTY),
+            ),
+            total_collections_produced=metric(
+                total_collections.quantize(QTY),
+                prev_total_collections.quantize(QTY),
+            ),
+            total_ingredient_consumption_cost=metric(
+                ingredient_cost.quantize(MONEY),
+                prev_ingredient_cost.quantize(MONEY),
+            ),
+            total_packaging_consumption_cost=metric(
+                packaging_cost.quantize(MONEY),
+                prev_packaging_cost.quantize(MONEY),
+            ),
+            total_production_batches=metric(
+                Decimal(batch_count),
+                Decimal(prev_batch_count),
+            ),
+            average_batch_size=metric(avg_batch, prev_avg_batch),
         )
 
     def get_ingredient_summary(self, params: AnalyticsQueryParams) -> ProductionDemandListResponse:

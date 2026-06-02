@@ -3,6 +3,7 @@
 from app.models.base import TimestampMixin
 from app.models.business_setting import BusinessSetting
 from app.models.collection import Collection
+from app.models.collection_package import CollectionPackage
 from app.models.customer import Customer
 from app.models.customer_communication import CustomerCommunication
 from app.models.customer_note import CustomerNote
@@ -41,6 +42,7 @@ from app.models.utility_charge import UtilityCharge
 __all__ = [
     "BusinessSetting",
     "Collection",
+    "CollectionPackage",
     "Customer",
     "CustomerCommunication",
     "CustomerNote",

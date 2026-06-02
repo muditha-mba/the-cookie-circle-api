@@ -15,6 +15,8 @@ from app.core.enums import (
     PaymentStatus,
 )
 from app.models.customer import Customer
+from app.models.collection import Collection
+from app.models.collection_package import CollectionPackage
 from app.models.delivery_area import DeliveryArea
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
@@ -65,6 +67,7 @@ class OrderKpiAggregate:
     total_orders: int
     completed_orders: int
     total_revenue: Decimal
+    total_profit: Decimal
     total_delivery_fees: Decimal
     cancelled_orders: int
 
@@ -270,6 +273,7 @@ class AnalyticsRepository:
             select(
                 OrderCollectionLine.collection_id,
                 OrderCollectionLine.collection_name_snapshot,
+                CollectionPackage.name.label("package_name"),
                 units,
                 revenue,
                 cost,
@@ -277,10 +281,13 @@ class AnalyticsRepository:
                 last_sold,
             )
             .join(Order, OrderCollectionLine.order_id == Order.id)
+            .join(Collection, Collection.id == OrderCollectionLine.collection_id)
+            .outerjoin(CollectionPackage, CollectionPackage.id == Collection.package_id)
             .where(self._order_time_filter(date_range))
             .group_by(
                 OrderCollectionLine.collection_id,
                 OrderCollectionLine.collection_name_snapshot,
+                CollectionPackage.name,
             )
             .order_by(order_expr)
             .limit(limit)
@@ -290,6 +297,7 @@ class AnalyticsRepository:
             {
                 "collection_id": row.collection_id,
                 "collection_name_snapshot": row.collection_name_snapshot,
+                "package_name": row.package_name,
                 "units_sold": row.units_sold,
                 "revenue_snapshot": row.revenue_snapshot,
                 "cost_snapshot": row.cost_snapshot,
@@ -404,6 +412,59 @@ class AnalyticsRepository:
             for row in rows
         ]
 
+    def fetch_collection_package_performance(
+        self,
+        date_range: AnalyticsDateRange,
+    ) -> list[dict[str, object]]:
+        filt = self._collection_line_filter(date_range)
+        package_name = func.coalesce(CollectionPackage.name, "Unassigned").label("package_name")
+        package_code = func.coalesce(CollectionPackage.code, "UNASSIGNED").label("package_code")
+        package_id = CollectionPackage.id.label("package_id")
+        revenue = func.sum(
+            OrderCollectionLine.collection_selling_price_snapshot * OrderCollectionLine.quantity,
+        ).label("revenue_snapshot")
+        cost = func.sum(
+            OrderCollectionLine.collection_cost_snapshot * OrderCollectionLine.quantity,
+        ).label("cost_snapshot")
+        profit = func.sum(
+            OrderCollectionLine.collection_profit_snapshot * OrderCollectionLine.quantity,
+        ).label("profit_snapshot")
+        units = func.sum(OrderCollectionLine.quantity).label("units_sold")
+        order_count = func.count(func.distinct(Order.id)).label("order_count")
+        stmt = (
+            select(
+                package_id,
+                package_code,
+                package_name,
+                revenue,
+                cost,
+                profit,
+                units,
+                order_count,
+            )
+            .select_from(OrderCollectionLine)
+            .join(Order, OrderCollectionLine.order_id == Order.id)
+            .join(Collection, Collection.id == OrderCollectionLine.collection_id)
+            .outerjoin(CollectionPackage, CollectionPackage.id == Collection.package_id)
+            .where(filt)
+            .group_by(package_id, package_code, package_name)
+            .order_by(desc(revenue))
+        )
+        rows = self.db.execute(stmt).all()
+        return [
+            {
+                "package_id": row.package_id,
+                "package_code": row.package_code,
+                "package_name": row.package_name,
+                "revenue_snapshot": Decimal(row.revenue_snapshot or 0).quantize(MONEY),
+                "cost_snapshot": Decimal(row.cost_snapshot or 0).quantize(MONEY),
+                "profit_snapshot": Decimal(row.profit_snapshot or 0).quantize(MONEY),
+                "units_sold": Decimal(row.units_sold or 0).quantize(QTY),
+                "order_count": int(row.order_count or 0),
+            }
+            for row in rows
+        ]
+
     def fetch_order_kpi_aggregate(self, date_range: AnalyticsDateRange) -> OrderKpiAggregate:
         filt = self._order_analytics_filter(date_range)
         stmt = select(
@@ -418,6 +479,7 @@ class AnalyticsRepository:
                 0,
             ),
             func.coalesce(func.sum(Order.total_revenue_snapshot), 0),
+            func.coalesce(func.sum(Order.total_profit_snapshot), 0),
             func.coalesce(func.sum(Order.delivery_fee_snapshot), 0),
             func.coalesce(
                 func.sum(
@@ -434,8 +496,9 @@ class AnalyticsRepository:
             total_orders=int(row[0] or 0),
             completed_orders=int(row[1] or 0),
             total_revenue=Decimal(row[2] or 0).quantize(MONEY),
-            total_delivery_fees=Decimal(row[3] or 0).quantize(MONEY),
-            cancelled_orders=int(row[4] or 0),
+            total_profit=Decimal(row[3] or 0).quantize(MONEY),
+            total_delivery_fees=Decimal(row[4] or 0).quantize(MONEY),
+            cancelled_orders=int(row[5] or 0),
         )
 
     def fetch_order_status_distribution(
@@ -567,6 +630,139 @@ class AnalyticsRepository:
             for row in rows
         ]
 
+    def fetch_order_lifecycle_trends(
+        self,
+        date_range: AnalyticsDateRange,
+        granularity: TrendGranularity,
+    ) -> list[dict[str, object]]:
+        period = self._period_column(granularity, Order.created_at).label("period")
+        filt = self._order_analytics_filter(date_range)
+        stmt = (
+            select(
+                period,
+                func.coalesce(func.sum(case((Order.status == OrderStatus.DRAFT, 1), else_=0)), 0).label("draft"),
+                func.coalesce(func.sum(case((Order.status == OrderStatus.CONFIRMED, 1), else_=0)), 0).label("confirmed"),
+                func.coalesce(func.sum(case((Order.status == OrderStatus.PREPARING, 1), else_=0)), 0).label("preparing"),
+                func.coalesce(func.sum(case((Order.status == OrderStatus.READY, 1), else_=0)), 0).label("ready"),
+                func.coalesce(func.sum(case((Order.status == OrderStatus.DELIVERED, 1), else_=0)), 0).label("delivered"),
+                func.coalesce(func.sum(case((Order.status == OrderStatus.CANCELLED, 1), else_=0)), 0).label("cancelled"),
+            )
+            .where(filt)
+            .group_by(period)
+            .order_by(period)
+        )
+        rows = self.db.execute(stmt).all()
+        return [
+            {
+                "period_start": row.period.date() if hasattr(row.period, "date") else row.period,
+                "draft": int(row.draft or 0),
+                "confirmed": int(row.confirmed or 0),
+                "preparing": int(row.preparing or 0),
+                "ready": int(row.ready or 0),
+                "delivered": int(row.delivered or 0),
+                "cancelled": int(row.cancelled or 0),
+            }
+            for row in rows
+        ]
+
+    def fetch_delivery_area_performance(
+        self,
+        date_range: AnalyticsDateRange,
+        *,
+        limit: int,
+    ) -> list[dict[str, object]]:
+        filt = self._order_analytics_filter(date_range)
+        area_name = func.coalesce(DeliveryArea.name, "Unassigned")
+        stmt = (
+            select(
+                area_name.label("area_name"),
+                func.count(Order.id).label("order_count"),
+                func.coalesce(func.sum(Order.total_revenue_snapshot), 0).label("revenue_snapshot"),
+                func.coalesce(func.sum(Order.delivery_fee_snapshot), 0).label("delivery_fee_revenue"),
+            )
+            .outerjoin(DeliveryArea, Order.delivery_area_id == DeliveryArea.id)
+            .where(filt)
+            .group_by(area_name)
+            .order_by(desc(func.coalesce(func.sum(Order.total_revenue_snapshot), 0)))
+            .limit(limit)
+        )
+        rows = self.db.execute(stmt).all()
+        return [
+            {
+                "area_name": str(row.area_name),
+                "order_count": int(row.order_count or 0),
+                "revenue_snapshot": Decimal(row.revenue_snapshot or 0).quantize(MONEY),
+                "delivery_fee_revenue": Decimal(row.delivery_fee_revenue or 0).quantize(MONEY),
+            }
+            for row in rows
+        ]
+
+    def fetch_payment_method_performance(
+        self,
+        date_range: AnalyticsDateRange,
+    ) -> list[dict[str, object]]:
+        filt = self._order_analytics_filter(date_range)
+        stmt = (
+            select(
+                Order.payment_method.label("payment_method"),
+                func.count(Order.id).label("order_count"),
+                func.coalesce(func.sum(Order.total_revenue_snapshot), 0).label("revenue_snapshot"),
+            )
+            .where(filt)
+            .group_by(Order.payment_method)
+            .order_by(desc(func.coalesce(func.sum(Order.total_revenue_snapshot), 0)))
+        )
+        rows = self.db.execute(stmt).all()
+        return [
+            {
+                "payment_method": row.payment_method,
+                "order_count": int(row.order_count or 0),
+                "revenue_snapshot": Decimal(row.revenue_snapshot or 0).quantize(MONEY),
+            }
+            for row in rows
+        ]
+
+    def fetch_customer_order_behaviour(
+        self,
+        date_range: AnalyticsDateRange,
+    ) -> dict[str, object]:
+        in_range = (
+            select(
+                Order.customer_id.label("customer_id"),
+                func.count(Order.id).label("order_count"),
+            )
+            .where(self._order_analytics_filter(date_range))
+            .group_by(Order.customer_id)
+            .subquery()
+        )
+        before_range = (
+            select(Order.customer_id.label("customer_id"))
+            .where(
+                Order.created_at < date_range.start_datetime,
+                Order.status.notin_(ORDER_ANALYTICS_EXCLUDED),
+            )
+            .distinct()
+            .subquery()
+        )
+        stmt = select(
+            func.coalesce(func.sum(case((before_range.c.customer_id.is_(None), 1), else_=0)), 0).label("first_time_customers"),
+            func.coalesce(func.sum(case((before_range.c.customer_id.is_not(None), 1), else_=0)), 0).label("returning_customers"),
+            func.coalesce(func.sum(in_range.c.order_count), 0).label("total_orders"),
+            func.count(in_range.c.customer_id).label("total_customers"),
+            func.coalesce(func.sum(case((in_range.c.order_count >= 2, 1), else_=0)), 0).label("repeat_customers"),
+        ).select_from(in_range).outerjoin(
+            before_range,
+            before_range.c.customer_id == in_range.c.customer_id,
+        )
+        row = self.db.execute(stmt).one()
+        return {
+            "first_time_customers": int(row.first_time_customers or 0),
+            "returning_customers": int(row.returning_customers or 0),
+            "total_orders": int(row.total_orders or 0),
+            "total_customers": int(row.total_customers or 0),
+            "repeat_customers": int(row.repeat_customers or 0),
+        }
+
     def fetch_order_performance(
         self,
         date_range: AnalyticsDateRange,
@@ -578,6 +774,9 @@ class AnalyticsRepository:
             .options(
                 joinedload(Order.customer),
                 joinedload(Order.delivery_area),
+                joinedload(Order.collection_lines)
+                .joinedload(OrderCollectionLine.collection)
+                .joinedload(Collection.package),
             )
             .where(self._order_analytics_filter(date_range))
             .order_by(desc(Order.created_at))
@@ -741,6 +940,22 @@ class AnalyticsRepository:
         paid = Decimal(row[0] or 0).quantize(MONEY)
         unpaid = Decimal(row[1] or 0).quantize(MONEY)
         return paid, unpaid, unpaid
+
+    def fetch_revenue_contribution(
+        self,
+        date_range: AnalyticsDateRange,
+    ) -> tuple[Decimal, Decimal, Decimal]:
+        stmt = select(
+            func.coalesce(func.sum(Order.products_subtotal_snapshot), 0),
+            func.coalesce(func.sum(Order.collections_subtotal_snapshot), 0),
+            func.coalesce(func.sum(Order.delivery_fee_snapshot), 0),
+        ).where(self._order_time_filter(date_range))
+        row = self.db.execute(stmt).one()
+        return (
+            Decimal(row[0] or 0).quantize(MONEY),
+            Decimal(row[1] or 0).quantize(MONEY),
+            Decimal(row[2] or 0).quantize(MONEY),
+        )
 
     def count_high_value_pending_orders(
         self,

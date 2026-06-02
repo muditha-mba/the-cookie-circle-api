@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.collection import Collection
 from app.models.collection_item_line import CollectionItemLine
+from app.models.collection_package import CollectionPackage
 from app.models.collection_product_line import CollectionProductLine
 from app.models.product_item import ProductItem
 from app.models.labour_charge import LabourCharge
@@ -22,6 +23,7 @@ class CollectionRepository:
 
     SORTABLE_COLUMNS = {
         "name": Collection.name,
+        "package": CollectionPackage.name,
         "created_at": Collection.created_at,
         "is_active": Collection.is_active,
         "selling_price": Collection.selling_price,
@@ -47,6 +49,7 @@ class CollectionRepository:
             selectinload(Collection.utility_charges),
             selectinload(Collection.labour_charges),
             selectinload(Collection.tax_charges),
+            selectinload(Collection.package),
         )
 
     def get_for_costing_by_ids(self, ids: list[uuid.UUID]) -> list[Collection]:
@@ -87,9 +90,10 @@ class CollectionRepository:
         search: str | None,
         sort_by: str,
         sort_order: str,
+        package_id: uuid.UUID | None,
     ) -> tuple[list[Collection], int]:
-        stmt = select(Collection)
-        count_stmt = select(func.count()).select_from(Collection)
+        stmt = select(Collection).outerjoin(Collection.package)
+        count_stmt = select(func.count()).select_from(Collection).outerjoin(Collection.package)
 
         if search:
             pattern = f"%{search.strip()}%"
@@ -99,6 +103,10 @@ class CollectionRepository:
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)
+
+        if package_id is not None:
+            stmt = stmt.where(Collection.package_id == package_id)
+            count_stmt = count_stmt.where(Collection.package_id == package_id)
 
         total = int(self.db.scalar(count_stmt) or 0)
         sort_column = self.SORTABLE_COLUMNS.get(sort_by, Collection.created_at)

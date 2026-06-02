@@ -12,8 +12,11 @@ from app.dependencies.auth import get_current_user
 from app.models.user import User
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_service import CollectionService
+from app.services.collection_package_service import CollectionPackageService
 from app.services.analytics.analytics_collection_service import AnalyticsCollectionService
 from app.services.analytics.analytics_customer_service import AnalyticsCustomerService
+from app.services.analytics.analytics_executive_service import AnalyticsExecutiveService
+from app.services.analytics.analytics_export_service import AnalyticsExportService
 from app.services.analytics.analytics_kpi_service import AnalyticsKpiService
 from app.services.analytics.analytics_operations_service import AnalyticsOperationsService
 from app.services.analytics.analytics_order_service import AnalyticsOrderService
@@ -27,6 +30,7 @@ from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
 from app.services.customer_service import CustomerService
 from app.services.delivery_area_service import DeliveryAreaService
+from app.services.dashboard_service import DashboardService
 from app.services.order_service import OrderService
 from app.services.production_batch_service import ProductionBatchService
 from app.services.production_planning_service import ProductionPlanningService
@@ -92,6 +96,12 @@ def get_collection_service(
     return CollectionService(db)
 
 
+def get_collection_package_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CollectionPackageService:
+    return CollectionPackageService(db)
+
+
 def get_business_setting_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> BusinessSettingService:
@@ -126,6 +136,12 @@ def get_order_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> OrderService:
     return OrderService(db)
+
+
+def get_dashboard_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> DashboardService:
+    return DashboardService(db)
 
 
 def get_delivery_area_service(
@@ -222,3 +238,15 @@ def get_analytics_operations_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> AnalyticsOperationsService:
     return AnalyticsOperationsService(db)
+
+
+def get_analytics_executive_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsExecutiveService:
+    return AnalyticsExecutiveService(db)
+
+
+def get_analytics_export_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsExportService:
+    return AnalyticsExportService(db)
