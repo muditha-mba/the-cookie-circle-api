@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.core.config import settings
 from app.middleware.cors import setup_cors
+from app.routers.analytics import router as analytics_router
 from app.routers.auth import router as auth_router
 from app.routers.business_settings import router as business_settings_router
 from app.routers.collections import router as collections_router
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(orders_router, prefix=settings.api_v1_prefix)
     app.include_router(production_router, prefix=settings.api_v1_prefix)
     app.include_router(suppliers_router, prefix=settings.api_v1_prefix)
+    app.include_router(analytics_router, prefix=settings.api_v1_prefix)
     app.include_router(users_router, prefix=settings.api_v1_prefix)
 
     return app

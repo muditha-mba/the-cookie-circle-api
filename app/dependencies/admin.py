@@ -12,6 +12,16 @@ from app.dependencies.auth import get_current_user
 from app.models.user import User
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_service import CollectionService
+from app.services.analytics.analytics_collection_service import AnalyticsCollectionService
+from app.services.analytics.analytics_customer_service import AnalyticsCustomerService
+from app.services.analytics.analytics_kpi_service import AnalyticsKpiService
+from app.services.analytics.analytics_operations_service import AnalyticsOperationsService
+from app.services.analytics.analytics_order_service import AnalyticsOrderService
+from app.services.analytics.analytics_overview_service import AnalyticsOverviewService
+from app.services.analytics.analytics_product_service import AnalyticsProductService
+from app.services.analytics.analytics_production_service import AnalyticsProductionService
+from app.services.analytics.analytics_production_ux_service import AnalyticsProductionUxService
+from app.services.analytics.analytics_revenue_service import AnalyticsRevenueService
 from app.services.customer_communication_service import CustomerCommunicationService
 from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
@@ -152,3 +162,63 @@ def get_purchase_planning_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> PurchasePlanningService:
     return PurchasePlanningService(db)
+
+
+def get_analytics_overview_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsOverviewService:
+    return AnalyticsOverviewService(db)
+
+
+def get_analytics_kpi_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsKpiService:
+    return AnalyticsKpiService(db)
+
+
+def get_analytics_revenue_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsRevenueService:
+    return AnalyticsRevenueService(db)
+
+
+def get_analytics_order_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsOrderService:
+    return AnalyticsOrderService(db)
+
+
+def get_analytics_product_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsProductService:
+    return AnalyticsProductService(db)
+
+
+def get_analytics_collection_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsCollectionService:
+    return AnalyticsCollectionService(db)
+
+
+def get_analytics_customer_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsCustomerService:
+    return AnalyticsCustomerService(db)
+
+
+def get_analytics_production_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsProductionService:
+    return AnalyticsProductionService(db)
+
+
+def get_analytics_production_ux_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsProductionUxService:
+    return AnalyticsProductionUxService(db)
+
+
+def get_analytics_operations_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> AnalyticsOperationsService:
+    return AnalyticsOperationsService(db)

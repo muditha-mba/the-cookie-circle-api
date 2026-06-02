@@ -16,7 +16,12 @@ if TYPE_CHECKING:
 
 
 class ProductItem(Base, TimestampMixin):
-    """Purchased resource with derived unit cost."""
+    """Purchased resource with derived unit cost.
+
+    Future inventory (Phase 8+) will attach stock configuration here — e.g.
+    reorder_level and track_inventory — while stock quantities and movements
+    remain in separate inventory tables.
+    """
 
     __tablename__ = "product_items"
 
