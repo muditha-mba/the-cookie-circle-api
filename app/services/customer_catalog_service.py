@@ -1,11 +1,8 @@
 """Public catalog for client ordering."""
 
-from decimal import Decimal
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.enums import CollectionSelectionMode
 from app.models.collection import Collection
 from app.models.collection_package import CollectionPackage
 from app.models.product import Product
@@ -14,7 +11,6 @@ from app.schemas.client_ordering import (
     ClientCatalogPackage,
     ClientCatalogProduct,
     ClientCatalogResponse,
-    CollectionCookieSelectionInput,
 )
 from app.services.product_cost_service import _money
 
@@ -36,7 +32,7 @@ class CustomerCatalogService:
             .where(CollectionPackage.is_active.is_(True))
             .options(
                 selectinload(CollectionPackage.collections).options(
-                    selectinload(Collection.product_lines),
+                    selectinload(Collection.allowed_categories),
                     selectinload(Collection.package),
                 ),
             )
@@ -63,32 +59,22 @@ class CustomerCatalogService:
         return result
 
     def _to_catalog_collection(self, collection: Collection) -> ClientCatalogCollection:
-        default_composition: list[CollectionCookieSelectionInput] = []
-        if collection.selection_mode == CollectionSelectionMode.FIXED:
-            default_composition = [
-                CollectionCookieSelectionInput(
-                    product_id=line.product_id,
-                    quantity=line.quantity,
-                )
-                for line in collection.product_lines
-            ]
         return ClientCatalogCollection(
             id=collection.id,
             name=collection.name,
             description=collection.description,
             package_code=collection.package.code,
             package_name=collection.package.name,
-            selling_price=collection.selling_price,
-            selection_mode=collection.selection_mode,
-            max_premium_cookies=collection.max_premium_cookies,
-            cookie_slot_count=collection.cookie_slot_count,
-            default_composition=default_composition,
+            package_size=collection.package_size,
+            package_fee=collection.package_fee,
+            allowed_category_ids=[category.id for category in collection.allowed_categories],
         )
 
     def _load_selectable_products(self) -> list[ClientCatalogProduct]:
         stmt = (
             select(Product)
             .where(Product.is_active.is_(True), Product.is_public.is_(True))
+            .options(selectinload(Product.category))
             .order_by(Product.name)
         )
         rows = list(self.db.scalars(stmt).all())
@@ -97,7 +83,9 @@ class CustomerCatalogService:
                 id=product.id,
                 name=product.name,
                 description=product.description,
-                is_premium=product.is_premium,
+                category_id=product.category_id,
+                category_code=product.category.code,
+                category_name=product.category.name,
                 selling_price_per_unit=(
                     _money(product.selling_price / product.yield_quantity)
                     if product.yield_quantity > 0

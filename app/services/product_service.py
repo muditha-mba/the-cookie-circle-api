@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.models.product import Product
 from app.models.product_recipe_line import ProductRecipeLine
+from app.repositories.product_category_repository import ProductCategoryRepository
 from app.repositories.product_item_repository import ProductItemRepository
 from app.repositories.product_repository import ProductRepository
 from app.schemas.pagination import PaginatedResponse, PaginationParams
@@ -34,6 +35,7 @@ class ProductService:
         self.db = db
         self.products = ProductRepository(db)
         self.product_items = ProductItemRepository(db)
+        self.categories = ProductCategoryRepository(db)
 
     def create(self, payload: ProductCreate) -> ProductDetailResponse:
         if self.products.get_by_name(payload.name):
@@ -42,6 +44,7 @@ class ProductService:
         product = Product(
             name=payload.name,
             description=payload.description,
+            category_id=self._resolve_category(payload.category_id).id,
             selling_price=payload.selling_price,
             buffer_amount=payload.buffer_amount,
             yield_quantity=payload.yield_quantity,
@@ -109,6 +112,8 @@ class ProductService:
 
         if payload.description is not None:
             product.description = payload.description
+        if payload.category_id is not None:
+            product.category_id = self._resolve_category(payload.category_id).id
         if payload.selling_price is not None:
             product.selling_price = payload.selling_price
         if payload.buffer_amount is not None:
@@ -272,11 +277,13 @@ class ProductService:
             id=product.id,
             name=product.name,
             description=product.description,
+            category_id=product.category_id,
             selling_price=product.selling_price,
             buffer_amount=product.buffer_amount,
             yield_quantity=product.yield_quantity,
             production_notes=product.production_notes,
             is_active=product.is_active,
+            is_public=product.is_public,
             created_at=product.created_at,
             updated_at=product.updated_at,
             recipe_lines=breakdown.ingredients.lines,
@@ -285,6 +292,14 @@ class ProductService:
             tax_charges=[self._charge_summary(c) for c in product.tax_charges],
             cost_breakdown=breakdown,
         )
+
+    def _resolve_category(self, category_id: uuid.UUID):
+        category = self.categories.get_by_id(category_id)
+        if not category:
+            raise NotFoundError("Product category not found")
+        if not category.is_active:
+            raise ValidationError(f"Product category is inactive: {category.name}")
+        return category
 
     @staticmethod
     def _charge_summary(charge) -> AttachedChargeSummary:

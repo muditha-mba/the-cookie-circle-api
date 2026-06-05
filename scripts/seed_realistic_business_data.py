@@ -43,7 +43,8 @@ from app.models.order_status_event import OrderStatusEvent
 from app.models.product_item_type import ProductItemType
 from app.models.user import User
 from app.schemas.business_settings import BusinessSettingsUpdate
-from app.schemas.collection import CollectionCreate, CollectionItemLineInput, CollectionProductLineInput
+from app.schemas.collection import CollectionCreate, CollectionItemLineInput
+from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.collection_package import CollectionPackageCreate
 from app.schemas.customer import CustomerCreate
 from app.schemas.delivery_area import DeliveryAreaCreate
@@ -73,6 +74,48 @@ QTY = Decimal("0.0001")
 RNG_SEED = 20260602
 
 
+CATEGORY_BY_PRODUCT: dict[str, str] = {
+    "Classic Chocolate Chip Cookie": "CHOCOLATE",
+    "White Chocolate Chip Cookie": "CHOCOLATE",
+    "Double Chocolate Chip Cookie": "CHOCOLATE",
+    "Double Chocolate White Chip Cookie": "CHOCOLATE",
+    "Unicorn Cookie": "KIDS_FAVOURITES",
+    "Smarties Cookie": "KIDS_FAVOURITES",
+    "White & Dark Chocolate Chip Cookie": "KIDS_FAVOURITES",
+    "Sugar Free Chocolate Chip Cookie": "HEALTHY",
+    "Sugar Free Date Cookie": "HEALTHY",
+    "Fruit & Nut Chocolate Chip Cookie": "NUTTY",
+    "Mixed Nut Chocolate Chip Cookie": "NUTTY",
+    "Cashew Chocolate Chip Cookie": "NUTTY",
+    "Classic Butter Cookie": "BUTTER",
+    "Cashew Butter Cookie": "BUTTER",
+}
+
+PACKAGE_ALLOWED_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "SPECIAL_EDITION": ("CHOCOLATE", "KIDS_FAVOURITES", "HEALTHY", "NUTTY"),
+    "MIX_AND_MATCH": ("CHOCOLATE", "KIDS_FAVOURITES", "HEALTHY", "NUTTY"),
+    "BUTTER_COLLECTION": ("BUTTER",),
+}
+
+PACKAGE_FEES: dict[str, Decimal] = {
+    "SPECIAL_EDITION": Decimal("350"),
+    "MIX_AND_MATCH": Decimal("0"),
+    "BUTTER_COLLECTION": Decimal("0"),
+}
+
+PACKAGE_SIZES: dict[str, int] = {
+    "The Signature Circle": 6,
+    "The Golden Circle": 10,
+    "The Grand Circle": 14,
+    "The Little Circle": 4,
+    "The Family Circle": 8,
+    "The Party Circle": 12,
+    "The Tea Circle": 8,
+    "The Warm Circle": 14,
+    "The Gathering Circle": 20,
+}
+
+
 @dataclass(frozen=True)
 class ProductSpec:
     name: str
@@ -88,8 +131,6 @@ class CollectionSpec:
     name: str
     description: str
     package_code: str
-    selling_price: Decimal
-    lines: list[tuple[str, Decimal]]
 
 
 PRODUCT_SPECS: tuple[ProductSpec, ...] = (
@@ -333,119 +374,46 @@ COLLECTION_SPECS: tuple[CollectionSpec, ...] = (
         name="The Signature Circle",
         description="Special Edition Collection — pack of 6; premium and classic cookie mix.",
         package_code="SPECIAL_EDITION",
-        selling_price=Decimal("2340"),
-        lines=[
-            ("Classic Chocolate Chip Cookie", Decimal("2")),
-            ("Double Chocolate Chip Cookie", Decimal("1")),
-            ("Cashew Butter Cookie", Decimal("1")),
-            ("Unicorn Cookie", Decimal("1")),
-            ("Sugar Free Date Cookie", Decimal("1")),
-        ],
     ),
     CollectionSpec(
         name="The Golden Circle",
-        description="Special Edition Collection — pack of 14; allows premium and custom selection.",
+        description="Special Edition — build your own 10-cookie gift pack.",
         package_code="SPECIAL_EDITION",
-        selling_price=Decimal("4380"),
-        lines=[
-            ("Classic Chocolate Chip Cookie", Decimal("3")),
-            ("White Chocolate Chip Cookie", Decimal("2")),
-            ("Double Chocolate Chip Cookie", Decimal("2")),
-            ("Fruit & Nut Chocolate Chip Cookie", Decimal("2")),
-            ("Classic Butter Cookie", Decimal("3")),
-            ("Sugar Free Chocolate Chip Cookie", Decimal("2")),
-        ],
     ),
     CollectionSpec(
         name="The Grand Circle",
-        description="Special Edition Collection — pack of 18; full premium gifting assortment.",
+        description="Special Edition — build your own 14-cookie celebration pack.",
         package_code="SPECIAL_EDITION",
-        selling_price=Decimal("6420"),
-        lines=[
-            ("Classic Chocolate Chip Cookie", Decimal("4")),
-            ("Double Chocolate White Chip Cookie", Decimal("2")),
-            ("Double Chocolate Chip Cookie", Decimal("2")),
-            ("Fruit & Nut Chocolate Chip Cookie", Decimal("2")),
-            ("Mixed Nut Chocolate Chip Cookie", Decimal("2")),
-            ("Cashew Chocolate Chip Cookie", Decimal("2")),
-            ("Classic Butter Cookie", Decimal("2")),
-            ("Cashew Butter Cookie", Decimal("2")),
-        ],
     ),
     CollectionSpec(
         name="The Little Circle",
-        description="Mix & Match Collection — pack of 6 with up to 1 premium cookie choice.",
+        description="Mix & Match — build your own 4-cookie pack.",
         package_code="MIX_AND_MATCH",
-        selling_price=Decimal("1800"),
-        lines=[
-            ("Classic Chocolate Chip Cookie", Decimal("2")),
-            ("Classic Butter Cookie", Decimal("2")),
-            ("Double Chocolate Chip Cookie", Decimal("1")),
-            ("Smarties Cookie", Decimal("1")),
-        ],
     ),
     CollectionSpec(
         name="The Family Circle",
-        description="Mix & Match Collection — pack of 12 with up to 2 premium cookie choices.",
+        description="Mix & Match — build your own 8-cookie pack.",
         package_code="MIX_AND_MATCH",
-        selling_price=Decimal("3600"),
-        lines=[
-            ("Classic Chocolate Chip Cookie", Decimal("3")),
-            ("Classic Butter Cookie", Decimal("3")),
-            ("Double Chocolate Chip Cookie", Decimal("1")),
-            ("Cashew Chocolate Chip Cookie", Decimal("1")),
-            ("White Chocolate Chip Cookie", Decimal("2")),
-            ("Sugar Free Date Cookie", Decimal("2")),
-        ],
     ),
     CollectionSpec(
         name="The Party Circle",
-        description="Mix & Match Collection — pack of 20 with up to 4 premium cookie choices.",
+        description="Mix & Match — build your own 12-cookie pack.",
         package_code="MIX_AND_MATCH",
-        selling_price=Decimal("5800"),
-        lines=[
-            ("Classic Chocolate Chip Cookie", Decimal("4")),
-            ("Classic Butter Cookie", Decimal("4")),
-            ("Double Chocolate Chip Cookie", Decimal("2")),
-            ("Double Chocolate White Chip Cookie", Decimal("2")),
-            ("Cashew Chocolate Chip Cookie", Decimal("2")),
-            ("Mixed Nut Chocolate Chip Cookie", Decimal("2")),
-            ("White Chocolate Chip Cookie", Decimal("2")),
-            ("Sugar Free Chocolate Chip Cookie", Decimal("2")),
-        ],
     ),
     CollectionSpec(
         name="The Tea Circle",
-        description="Butter Collection — exact composition: 10 Classic Butter Cookies.",
+        description="Butter Collection — build your own 8-cookie butter assortment.",
         package_code="BUTTER_COLLECTION",
-        selling_price=Decimal("900"),
-        lines=[("Classic Butter Cookie", Decimal("10"))],
     ),
     CollectionSpec(
         name="The Warm Circle",
-        description=(
-            "Butter Collection — exact composition: "
-            "14 Classic Butter Cookies + 6 Cashew Butter Cookies."
-        ),
+        description="Butter Collection — build your own 14-cookie butter assortment.",
         package_code="BUTTER_COLLECTION",
-        selling_price=Decimal("1980"),
-        lines=[
-            ("Classic Butter Cookie", Decimal("14")),
-            ("Cashew Butter Cookie", Decimal("6")),
-        ],
     ),
     CollectionSpec(
         name="The Gathering Circle",
-        description=(
-            "Butter Collection — exact composition: "
-            "15 Classic Butter Cookies + 15 Cashew Butter Cookies."
-        ),
+        description="Butter Collection — build your own 20-cookie butter assortment.",
         package_code="BUTTER_COLLECTION",
-        selling_price=Decimal("3150"),
-        lines=[
-            ("Classic Butter Cookie", Decimal("15")),
-            ("Cashew Butter Cookie", Decimal("15")),
-        ],
     ),
 )
 
@@ -678,16 +646,87 @@ def seed_product_items(
     return ids
 
 
-def seed_products(db: Session, product_item_ids: dict[str, Any]) -> dict[str, Any]:
+CATEGORY_DEFAULTS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "a1000001-0000-4000-8000-000000000001",
+        "code": "CHOCOLATE",
+        "name": "Chocolate",
+        "sort_order": 1,
+    },
+    {
+        "id": "a1000001-0000-4000-8000-000000000002",
+        "code": "KIDS_FAVOURITES",
+        "name": "Kids Favourites",
+        "sort_order": 2,
+    },
+    {
+        "id": "a1000001-0000-4000-8000-000000000003",
+        "code": "HEALTHY",
+        "name": "Healthy",
+        "sort_order": 3,
+    },
+    {
+        "id": "a1000001-0000-4000-8000-000000000004",
+        "code": "NUTTY",
+        "name": "Nutty",
+        "sort_order": 4,
+    },
+    {
+        "id": "a1000001-0000-4000-8000-000000000005",
+        "code": "BUTTER",
+        "name": "Butter",
+        "sort_order": 5,
+    },
+)
+
+
+def ensure_product_categories(db: Session) -> dict[str, Any]:
+    """Recreate canonical categories after clear_business_data wipes them."""
+    from app.models.product_category import ProductCategory
+
+    ids: dict[str, Any] = {}
+    for row in CATEGORY_DEFAULTS:
+        existing = db.scalar(select(ProductCategory).where(ProductCategory.code == row["code"]))
+        if existing is None:
+            category = ProductCategory(
+                id=row["id"],
+                code=row["code"],
+                name=row["name"],
+                sort_order=row["sort_order"],
+                is_active=True,
+            )
+            db.add(category)
+            db.flush()
+            ids[row["code"]] = category.id
+        else:
+            ids[existing.code] = existing.id
+    db.commit()
+    return ids
+
+
+def load_category_ids(db: Session) -> dict[str, Any]:
+    from app.models.product_category import ProductCategory
+
+    rows = db.scalars(select(ProductCategory)).all()
+    return {row.code: row.id for row in rows}
+
+
+def seed_products(
+    db: Session,
+    product_item_ids: dict[str, Any],
+    category_ids: dict[str, Any],
+) -> dict[str, Any]:
     service = ProductService(db)
     ids: dict[str, Any] = {}
     for spec in PRODUCT_SPECS:
         batch_selling_price = (spec.unit_price * spec.yield_quantity).quantize(MONEY)
+        category_code = CATEGORY_BY_PRODUCT[spec.name]
         payload = ProductCreate(
             name=spec.name,
             description=(
                 "Premium cookie" if spec.is_premium else "Signature cookie"
             ) + " seeded for realistic six-month operations analytics.",
+            category_id=category_ids[category_code],
             selling_price=batch_selling_price,
             buffer_amount=spec.buffer_amount,
             yield_quantity=spec.yield_quantity,
@@ -713,7 +752,7 @@ def seed_products(db: Session, product_item_ids: dict[str, Any]) -> dict[str, An
 
 def seed_collections(
     db: Session,
-    product_ids: dict[str, Any],
+    category_ids: dict[str, Any],
     cookie_box_id: Any,
 ) -> dict[str, Any]:
     service = CollectionService(db)
@@ -723,18 +762,16 @@ def seed_collections(
     }
     ids: dict[str, Any] = {}
     for spec in COLLECTION_SPECS:
+        allowed_codes = PACKAGE_ALLOWED_CATEGORIES[spec.package_code]
         payload = CollectionCreate(
             name=spec.name,
             description=spec.description,
             package_id=package_ids[spec.package_code],
-            selling_price=spec.selling_price,
-            buffer_amount=Decimal("0"),
+            package_size=PACKAGE_SIZES[spec.name],
+            package_fee=PACKAGE_FEES[spec.package_code],
             is_active=True,
             is_public=True,
-            product_lines=[
-                CollectionProductLineInput(product_id=product_ids[name], quantity=qty)
-                for name, qty in spec.lines
-            ],
+            allowed_category_ids=[category_ids[code] for code in allowed_codes],
             item_lines=[CollectionItemLineInput(product_item_id=cookie_box_id, quantity=Decimal("1"))],
             utility_charge_ids=[],
             labour_charge_ids=[],
@@ -906,6 +943,49 @@ def seed_customers(db: Session, rng: random.Random, count: int = 50) -> list[Any
     return customers
 
 
+def build_random_selections(
+    rng: random.Random,
+    collection_name: str,
+    product_ids: dict[str, Any],
+) -> list[CollectionCookieSelectionInput]:
+    package_size = PACKAGE_SIZES[collection_name]
+    package_code = next(
+        spec.package_code for spec in COLLECTION_SPECS if spec.name == collection_name
+    )
+    allowed_codes = set(PACKAGE_ALLOWED_CATEGORIES[package_code])
+    eligible = [
+        name
+        for name, code in CATEGORY_BY_PRODUCT.items()
+        if code in allowed_codes and name in product_ids
+    ]
+    if not eligible:
+        raise RuntimeError(f"No eligible products for collection {collection_name}")
+
+    remaining = package_size
+    selections: list[CollectionCookieSelectionInput] = []
+    while remaining > 0:
+        product_name = rng.choice(eligible)
+        qty = rng.randint(1, remaining)
+        remaining -= qty
+        product_id = product_ids[product_name]
+        existing = next((row for row in selections if row.product_id == product_id), None)
+        if existing is None:
+            selections.append(
+                CollectionCookieSelectionInput(product_id=product_id, quantity=Decimal(str(qty))),
+            )
+        else:
+            selections = [
+                CollectionCookieSelectionInput(
+                    product_id=row.product_id,
+                    quantity=row.quantity + Decimal(str(qty)),
+                )
+                if row.product_id == product_id
+                else row
+                for row in selections
+            ]
+    return selections
+
+
 def choose_lines_for_order(
     rng: random.Random,
     product_ids: dict[str, Any],
@@ -938,7 +1018,14 @@ def choose_lines_for_order(
             ],
         )
         quantity = Decimal("1") if rng.random() < 0.82 else Decimal("2")
-        return [], [OrderCollectionLineInput(collection_id=collection_ids[collection_name], quantity=quantity)]
+        selections = build_random_selections(rng, collection_name, product_ids)
+        return [], [
+            OrderCollectionLineInput(
+                collection_id=collection_ids[collection_name],
+                quantity=quantity,
+                selections=selections,
+            ),
+        ]
 
     # Product order
     product_name = weighted_choice(
@@ -1362,9 +1449,10 @@ def main() -> int:
         item_types = ensure_product_item_types(db)
         supplier_ids = seed_suppliers(db)
         product_item_ids = seed_product_items(db, item_types, supplier_ids)
-        product_ids = seed_products(db, product_item_ids)
+        category_ids = ensure_product_categories(db)
+        product_ids = seed_products(db, product_item_ids, category_ids)
         ensure_collection_packages(db)
-        collection_ids = seed_collections(db, product_ids, product_item_ids["Cookie Box"])
+        collection_ids = seed_collections(db, category_ids, product_item_ids["Cookie Box"])
 
         settings_service = BusinessSettingService(db)
         settings_service.update_settings(

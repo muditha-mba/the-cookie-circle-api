@@ -8,10 +8,12 @@ from app.models.customer import Customer
 from app.models.customer_communication import CustomerCommunication
 from app.models.customer_note import CustomerNote
 from app.models.collection_associations import (
+    collection_allowed_categories,
     collection_labour_charges,
     collection_tax_charges,
     collection_utility_charges,
 )
+from app.models.product_category import ProductCategory
 from app.models.collection_item_line import CollectionItemLine
 from app.models.collection_product_line import CollectionProductLine
 from app.models.email_verification_token import EmailVerificationToken
@@ -49,6 +51,7 @@ __all__ = [
     "CustomerNote",
     "CollectionItemLine",
     "CollectionProductLine",
+    "ProductCategory",
     "EmailVerificationToken",
     "LabourCharge",
     "DeliveryArea",
@@ -70,6 +73,7 @@ __all__ = [
     "TimestampMixin",
     "User",
     "UtilityCharge",
+    "collection_allowed_categories",
     "collection_labour_charges",
     "collection_tax_charges",
     "collection_utility_charges",

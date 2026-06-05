@@ -7,8 +7,6 @@ from fastapi import APIRouter, Depends, status
 
 from app.dependencies.admin import get_collection_service, get_current_admin_user
 from app.schemas.collection import (
-    CollectionCostBreakdown,
-    CollectionCostPreviewRequest,
     CollectionCreate,
     CollectionDetailResponse,
     CollectionListParams,
@@ -32,15 +30,6 @@ def list_collections(
 ) -> PaginatedResponse[CollectionSummaryResponse]:
     """List collections with pagination."""
     return service.list(params)
-
-
-@router.post("/cost-preview", response_model=CollectionCostBreakdown)
-def preview_collection_cost(
-    payload: CollectionCostPreviewRequest,
-    service: Annotated[CollectionService, Depends(get_collection_service)],
-) -> CollectionCostBreakdown:
-    """Calculate collection cost breakdown without saving."""
-    return service.preview_cost(payload)
 
 
 @router.post("", response_model=CollectionDetailResponse, status_code=status.HTTP_201_CREATED)

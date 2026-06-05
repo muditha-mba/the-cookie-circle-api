@@ -4,7 +4,7 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Numeric, String, Text, Uuid
+from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -17,6 +17,7 @@ from app.models.product_associations import (
 
 if TYPE_CHECKING:
     from app.models.labour_charge import LabourCharge
+    from app.models.product_category import ProductCategory
     from app.models.product_recipe_line import ProductRecipeLine
     from app.models.tax_charge import TaxCharge
     from app.models.utility_charge import UtilityCharge
@@ -50,7 +51,14 @@ class Product(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("product_categories.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
 
+    category: Mapped["ProductCategory"] = relationship("ProductCategory", back_populates="products")
     recipe_lines: Mapped[list["ProductRecipeLine"]] = relationship(
         "ProductRecipeLine",
         back_populates="product",

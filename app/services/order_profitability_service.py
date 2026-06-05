@@ -24,7 +24,11 @@ from app.schemas.order_profitability import (
     ProfitableProductSoldRow,
     TopProfitableOrderRow,
 )
-from app.services.collection_cost_service import calculate_breakdown_for_collection
+from app.services.collection_selection_validator import CollectionSelectionValidator
+from app.services.package_pricing_service import (
+    calculate_package_cost,
+    calculate_package_selling_price,
+)
 from app.services.product_cost_service import _money, calculate_breakdown_for_product
 
 
@@ -48,6 +52,7 @@ class OrderProfitabilityService:
         self.products = ProductRepository(db)
         self.collections = CollectionRepository(db)
         self.orders = OrderRepository(db)
+        self.selection_validator = CollectionSelectionValidator(db)
 
     def build_order_snapshots(
         self,
@@ -122,7 +127,6 @@ class OrderProfitabilityService:
         )
 
     def apply_snapshots_to_order(self, order: Order, result: OrderSnapshotBuildResult) -> None:
-        """Write calculated snapshots onto an order model (create or line update)."""
         order.products_subtotal_snapshot = result.financials.products_subtotal_snapshot
         order.collections_subtotal_snapshot = result.financials.collections_subtotal_snapshot
         order.delivery_fee_snapshot = result.financials.delivery_fee_snapshot
@@ -132,10 +136,6 @@ class OrderProfitabilityService:
         order.margin_percentage_snapshot = result.financials.margin_percentage_snapshot
 
     def apply_delivery_fee_snapshot(self, order: Order, delivery_fee: Decimal) -> None:
-        """
-        Recompute order-level revenue/profit from existing line snapshots only.
-        Used when delivery area changes without line edits.
-        """
         delivery = _money(delivery_fee)
         products = _money(order.products_subtotal_snapshot)
         collections = _money(order.collections_subtotal_snapshot)
@@ -153,7 +153,6 @@ class OrderProfitabilityService:
 
     @staticmethod
     def financial_snapshot_from_order(order: Order) -> OrderFinancialSnapshot:
-        """Read persisted snapshots only — never recalculates from catalog."""
         return OrderFinancialSnapshot(
             products_subtotal_snapshot=order.products_subtotal_snapshot,
             collections_subtotal_snapshot=order.collections_subtotal_snapshot,
@@ -194,7 +193,10 @@ class OrderProfitabilityService:
         rows = self.orders.fetch_most_profitable_collections_sold(limit=limit)
         return [ProfitableCollectionSoldRow.model_validate(row) for row in rows]
 
-    def _build_product_line_snapshot(self, line_input: OrderProductLineInput) -> OrderProductLine:
+    def _build_product_line_snapshot(
+        self,
+        line_input: OrderProductLineInput,
+    ) -> OrderProductLine:
         products = self.products.get_for_costing_by_ids([line_input.product_id])
         if not products:
             raise NotFoundError(f"Product not found: {line_input.product_id}")
@@ -212,9 +214,6 @@ class OrderProfitabilityService:
         if product.yield_quantity <= 0:
             raise ValidationError(f"Product '{product.name}' has invalid yield quantity")
 
-        # Product selling_price and breakdown.total_cost are batch-level values.
-        # Order line snapshots must store per-unit values to avoid overstating
-        # revenue/cost when quantity represents units sold.
         unit_price = _money(product.selling_price / product.yield_quantity)
         unit_cost = _money(breakdown.cost_per_unit)
         unit_profit = _money(unit_price - unit_cost)
@@ -238,15 +237,17 @@ class OrderProfitabilityService:
 
         self._validate_collection_for_snapshot(collection)
 
-        try:
-            breakdown = calculate_breakdown_for_collection(collection)
-        except Exception as exc:  # noqa: BLE001
+        if not line_input.selections:
             raise ValidationError(
-                f"Unable to calculate collection cost breakdown for '{collection.name}'",
-            ) from exc
+                f"Cookie selections are required for package '{collection.name}'.",
+            )
 
-        unit_price = _money(collection.selling_price)
-        unit_cost = _money(breakdown.total_cost)
+        per_pack = self.selection_validator.validate_per_pack(
+            collection,
+            selections=line_input.selections,
+        )
+        unit_price = calculate_package_selling_price(collection, per_pack)
+        unit_cost = calculate_package_cost(per_pack)
         unit_profit = _money(unit_price - unit_cost)
 
         return OrderCollectionLine(
@@ -271,8 +272,8 @@ class OrderProfitabilityService:
     def _validate_collection_for_snapshot(collection: Collection) -> None:
         if not collection.is_active:
             raise ValidationError(f"Collection is inactive: {collection.name}")
-        if collection.selling_price is None:
-            raise ValidationError(f"Collection '{collection.name}' has no selling price")
+        if collection.package_size <= 0:
+            raise ValidationError(f"Collection '{collection.name}' has invalid package size")
         if not collection.name.strip():
             raise ValidationError("Collection name is required for order snapshot")
 

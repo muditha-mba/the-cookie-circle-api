@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
-from app.core.enums import CollectionSelectionMode, OrderType
+from app.core.enums import OrderType
 from app.schemas.order_profitability import OrderFinancialSnapshot
 
 
@@ -35,11 +35,19 @@ class CateringConstraintsResponse(BaseModel):
     earliest_delivery_date: date
 
 
+class ClientCatalogProductCategory(BaseModel):
+    id: UUID
+    code: str
+    name: str
+
+
 class ClientCatalogProduct(BaseModel):
     id: UUID
     name: str
     description: str | None
-    is_premium: bool
+    category_id: UUID
+    category_code: str
+    category_name: str
     selling_price_per_unit: Decimal
 
 
@@ -49,11 +57,9 @@ class ClientCatalogCollection(BaseModel):
     description: str | None
     package_code: str
     package_name: str
-    selling_price: Decimal
-    selection_mode: CollectionSelectionMode
-    max_premium_cookies: int | None
-    cookie_slot_count: int | None
-    default_composition: list[CollectionCookieSelectionInput]
+    package_size: int
+    package_fee: Decimal
+    allowed_category_ids: list[UUID]
 
 
 class ClientCatalogPackage(BaseModel):

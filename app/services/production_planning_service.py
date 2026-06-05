@@ -308,28 +308,19 @@ class ProductionPlanningService:
         quantities: dict[uuid.UUID, Decimal] = defaultdict(lambda: Decimal("0"))
         names: dict[uuid.UUID, str] = {}
 
-        collection_ids: set[uuid.UUID] = set()
         for order in production_orders:
             for line in order.product_lines:
                 quantities[line.product_id] += line.quantity
                 names[line.product_id] = line.product_name_snapshot
             for line in order.collection_lines:
-                collection_ids.add(line.collection_id)
-
-        collections_by_id = self._load_collections(collection_ids)
-        for order in production_orders:
-            for line in order.collection_lines:
-                collection = collections_by_id.get(line.collection_id)
-                if collection is None:
+                if not line.selections:
                     raise ValidationError(
-                        f"Collection {line.collection_id} referenced on order "
-                        f"{order.order_number} was not found.",
+                        f"Order {order.order_number} collection line '{line.collection_name_snapshot}' "
+                        "has no cookie selections.",
                     )
-                for product_line in collection.product_lines:
-                    pid = product_line.product_id
-                    quantities[pid] += line.quantity * product_line.quantity
-                    if pid not in names and product_line.product:
-                        names[pid] = product_line.product.name
+                for selection in line.selections:
+                    quantities[selection.product_id] += selection.quantity
+                    names[selection.product_id] = selection.product_name_snapshot
 
         return [
             ProductDemandLine(

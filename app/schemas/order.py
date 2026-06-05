@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
+from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.order_profitability import OrderFinancialSnapshot
 
@@ -23,6 +24,7 @@ class OrderCollectionLineInput(BaseModel):
 
     collection_id: UUID
     quantity: Decimal = Field(gt=0)
+    selections: list[CollectionCookieSelectionInput] | None = None
 
 
 class OrderDeliveryFields(BaseModel):

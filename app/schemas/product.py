@@ -19,6 +19,7 @@ class ProductBase(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    category_id: UUID
     selling_price: Decimal = Field(ge=0)
     buffer_amount: Decimal = Field(default=Decimal("0"), ge=0)
     yield_quantity: Decimal = Field(gt=0)
@@ -46,6 +47,7 @@ class ProductUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    category_id: UUID | None = None
     selling_price: Decimal | None = Field(default=None, ge=0)
     buffer_amount: Decimal | None = Field(default=None, ge=0)
     yield_quantity: Decimal | None = Field(default=None, gt=0)

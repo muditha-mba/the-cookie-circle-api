@@ -1,4 +1,4 @@
-"""Collection business logic."""
+"""Package configuration business logic."""
 
 from __future__ import annotations
 
@@ -10,40 +10,34 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.packaging import is_packaging_item_type
 from app.models.collection import Collection
 from app.models.collection_item_line import CollectionItemLine
-from app.models.collection_product_line import CollectionProductLine
 from app.models.product_item import ProductItem
 from app.repositories.collection_repository import CollectionRepository
 from app.repositories.collection_package_repository import CollectionPackageRepository
+from app.repositories.product_category_repository import ProductCategoryRepository
 from app.repositories.product_item_repository import ProductItemRepository
-from app.repositories.product_repository import ProductRepository
 from app.schemas.collection import (
-    CollectionCostBreakdown,
-    CollectionCostPreviewRequest,
     CollectionCreate,
     CollectionDetailResponse,
-    CollectionListParams,
     CollectionItemLineInput,
-    CollectionProductLineInput,
+    CollectionItemLineResponse,
+    CollectionListParams,
     CollectionSummaryResponse,
     CollectionUpdate,
+    ProductCategorySummary,
 )
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.product import AttachedChargeSummary
-from app.services.collection_cost_service import (
-    calculate_breakdown_for_collection,
-    calculate_collection_cost_breakdown,
-)
 from app.utils.charge_applicability import COLLECTION_APPLICABILITIES, validate_charges_for_target
 
 
 class CollectionService:
-    """Handles collection CRUD and costing."""
+    """Handles package configuration CRUD."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
         self.collections = CollectionRepository(db)
         self.collection_packages = CollectionPackageRepository(db)
-        self.products = ProductRepository(db)
+        self.product_categories = ProductCategoryRepository(db)
         self.product_items = ProductItemRepository(db)
 
     def create(self, payload: CollectionCreate) -> CollectionDetailResponse:
@@ -54,12 +48,12 @@ class CollectionService:
             name=payload.name,
             description=payload.description,
             package_id=self._resolve_package(payload.package_id).id,
-            selling_price=payload.selling_price,
-            buffer_amount=payload.buffer_amount,
+            package_size=payload.package_size,
+            package_fee=payload.package_fee,
             is_active=payload.is_active,
             is_public=payload.is_public,
         )
-        self._apply_product_lines(collection, payload.product_lines)
+        collection.allowed_categories = self._resolve_categories(payload.allowed_category_ids)
         self._apply_item_lines(collection, payload.item_lines)
         self._apply_charges(
             collection,
@@ -89,7 +83,7 @@ class CollectionService:
             package_id=params.package_id,
         )
         return PaginatedResponse(
-            items=[CollectionSummaryResponse.model_validate(item) for item in items],
+            items=[self._to_summary_response(item) for item in items],
             total=total,
             page=params.page,
             page_size=params.page_size,
@@ -104,8 +98,8 @@ class CollectionService:
         update_data = payload.model_dump(
             exclude_unset=True,
             exclude={
-                "product_lines",
                 "item_lines",
+                "allowed_category_ids",
                 "utility_charge_ids",
                 "labour_charge_ids",
                 "tax_charge_ids",
@@ -113,8 +107,8 @@ class CollectionService:
         )
         if (
             not update_data
-            and payload.product_lines is None
             and payload.item_lines is None
+            and payload.allowed_category_ids is None
             and payload.utility_charge_ids is None
             and payload.labour_charge_ids is None
             and payload.tax_charge_ids is None
@@ -131,17 +125,16 @@ class CollectionService:
             collection.description = payload.description
         if payload.package_id is not None:
             collection.package_id = self._resolve_package(payload.package_id).id
-        if payload.selling_price is not None:
-            collection.selling_price = payload.selling_price
-        if payload.buffer_amount is not None:
-            collection.buffer_amount = payload.buffer_amount
+        if payload.package_size is not None:
+            collection.package_size = payload.package_size
+        if payload.package_fee is not None:
+            collection.package_fee = payload.package_fee
         if payload.is_active is not None:
             collection.is_active = payload.is_active
         if payload.is_public is not None:
             collection.is_public = payload.is_public
-
-        if payload.product_lines is not None:
-            self._replace_product_lines(collection, payload.product_lines)
+        if payload.allowed_category_ids is not None:
+            collection.allowed_categories = self._resolve_categories(payload.allowed_category_ids)
 
         if payload.item_lines is not None:
             self._replace_item_lines(collection, payload.item_lines)
@@ -183,44 +176,6 @@ class CollectionService:
         self.collections.delete(collection)
         self.db.commit()
 
-    def preview_cost(self, payload: CollectionCostPreviewRequest) -> CollectionCostBreakdown:
-        product_lines = self._build_preview_product_lines(payload.product_lines)
-        item_lines = self._build_preview_item_lines(payload.item_lines)
-        utility = self._resolve_charges(
-            payload.utility_charge_ids,
-            self.collections.get_utility_charges_by_ids,
-            "utility",
-        )
-        labour = self._resolve_charges(
-            payload.labour_charge_ids,
-            self.collections.get_labour_charges_by_ids,
-            "labour",
-        )
-        tax = self._resolve_charges(
-            payload.tax_charge_ids,
-            self.collections.get_tax_charges_by_ids,
-            "tax",
-        )
-        return calculate_collection_cost_breakdown(
-            selling_price=payload.selling_price,
-            buffer_amount=payload.buffer_amount,
-            product_lines=product_lines,
-            item_lines=item_lines,
-            utility_charges=utility,
-            labour_charges=labour,
-            tax_charges=tax,
-        )
-
-    def _replace_product_lines(
-        self,
-        collection: Collection,
-        lines: list[CollectionProductLineInput],
-    ) -> None:
-        collection.product_lines.clear()
-        self.db.flush()
-        if lines:
-            self._apply_product_lines(collection, lines)
-
     def _replace_item_lines(
         self,
         collection: Collection,
@@ -230,29 +185,6 @@ class CollectionService:
         self.db.flush()
         if lines:
             self._apply_item_lines(collection, lines)
-
-    def _apply_product_lines(
-        self,
-        collection: Collection,
-        lines: list[CollectionProductLineInput],
-    ) -> None:
-        if not lines:
-            return
-        seen: set[uuid.UUID] = set()
-        for line in lines:
-            if line.product_id in seen:
-                raise ValidationError("Duplicate product in collection")
-            seen.add(line.product_id)
-
-        products = self._load_products([line.product_id for line in lines])
-        for line in lines:
-            product = products[line.product_id]
-            collection.product_lines.append(
-                CollectionProductLine(
-                    product_id=product.id,
-                    quantity=line.quantity,
-                ),
-            )
 
     def _apply_item_lines(
         self,
@@ -301,6 +233,17 @@ class CollectionService:
             "tax",
         )
 
+    def _resolve_categories(self, ids: list[uuid.UUID]):
+        if not ids:
+            raise ValidationError("At least one allowed category is required")
+        categories = self.product_categories.get_by_ids(ids)
+        if len(categories) != len(set(ids)):
+            raise NotFoundError("One or more product categories were not found")
+        inactive = [category.name for category in categories if not category.is_active]
+        if inactive:
+            raise ValidationError(f"Inactive categories cannot be assigned: {', '.join(inactive)}")
+        return categories
+
     def _resolve_charges(self, ids: list[uuid.UUID], loader, label: str):
         if not ids:
             return []
@@ -313,17 +256,6 @@ class CollectionService:
             allowed=COLLECTION_APPLICABILITIES,
         )
         return charges
-
-    def _load_products(self, ids: list[uuid.UUID]):
-        products_list = self.products.get_for_costing_by_ids(ids)
-        products: dict[uuid.UUID, object] = {product.id: product for product in products_list}
-        for product_id in ids:
-            product = products.get(product_id)
-            if not product:
-                raise NotFoundError(f"Product not found: {product_id}")
-            if not product.is_active:
-                raise ValidationError(f"Product is inactive: {product.name}")
-        return products
 
     def _load_packaging_items(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, ProductItem]:
         items_list = self.product_items.get_by_ids_with_type(ids)
@@ -341,68 +273,45 @@ class CollectionService:
                 )
         return items
 
-    def _build_preview_product_lines(
-        self,
-        lines: list[CollectionProductLineInput],
-    ) -> list[CollectionProductLine]:
-        preview_lines: list[CollectionProductLine] = []
-        seen: set[uuid.UUID] = set()
-        products = self._load_products([line.product_id for line in lines])
-        for line in lines:
-            if line.product_id in seen:
-                raise ValidationError("Duplicate product in collection")
-            seen.add(line.product_id)
-            product = products[line.product_id]
-            preview_lines.append(
-                CollectionProductLine(
-                    product_id=product.id,
-                    quantity=line.quantity,
-                    product=product,
-                ),
-            )
-        return preview_lines
-
-    def _build_preview_item_lines(
-        self,
-        lines: list[CollectionItemLineInput],
-    ) -> list[CollectionItemLine]:
-        preview_lines: list[CollectionItemLine] = []
-        seen: set[uuid.UUID] = set()
-        items = self._load_packaging_items([line.product_item_id for line in lines])
-        for line in lines:
-            if line.product_item_id in seen:
-                raise ValidationError("Duplicate packaging item in collection")
-            seen.add(line.product_item_id)
-            item = items[line.product_item_id]
-            preview_lines.append(
-                CollectionItemLine(
-                    product_item_id=item.id,
-                    quantity=line.quantity,
-                    product_item=item,
-                ),
-            )
-        return preview_lines
-
-    def _to_detail_response(self, collection: Collection) -> CollectionDetailResponse:
-        breakdown = calculate_breakdown_for_collection(collection)
-        return CollectionDetailResponse(
+    def _to_summary_response(self, collection: Collection) -> CollectionSummaryResponse:
+        package = collection.package
+        return CollectionSummaryResponse(
             id=collection.id,
             name=collection.name,
             description=collection.description,
             package_id=collection.package_id,
-            selling_price=collection.selling_price,
-            buffer_amount=collection.buffer_amount,
+            package_name=package.name if package else "",
+            package_code=package.code if package else "",
+            package_size=collection.package_size,
+            package_fee=collection.package_fee,
             is_active=collection.is_active,
             is_public=collection.is_public,
+            allowed_category_ids=[category.id for category in collection.allowed_categories],
             created_at=collection.created_at,
             updated_at=collection.updated_at,
-            product_lines=breakdown.products.lines,
-            item_lines=breakdown.collection_items.lines,
+        )
+
+    def _to_detail_response(self, collection: Collection) -> CollectionDetailResponse:
+        return CollectionDetailResponse(
+            **self._to_summary_response(collection).model_dump(),
+            allowed_categories=[
+                ProductCategorySummary.model_validate(category)
+                for category in collection.allowed_categories
+            ],
+            item_lines=[
+                CollectionItemLineResponse(
+                    id=line.id,
+                    product_item_id=line.product_item_id,
+                    product_item_name=line.product_item.name if line.product_item else "",
+                    quantity=line.quantity,
+                    unit=line.product_item.purchase_unit if line.product_item else "",
+                )
+                for line in collection.item_lines
+            ],
             utility_charges=[self._charge_summary(c) for c in collection.utility_charges],
             labour_charges=[self._charge_summary(c) for c in collection.labour_charges],
             tax_charges=[self._charge_summary(c) for c in collection.tax_charges],
             package=collection.package,
-            cost_breakdown=breakdown,
         )
 
     def _resolve_package(self, package_id: uuid.UUID):

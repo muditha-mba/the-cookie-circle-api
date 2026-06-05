@@ -101,7 +101,18 @@ class CustomerCheckoutService:
         snapshot_result = self.profitability.build_order_snapshots(
             product_lines=[],
             collection_lines=[
-                OrderCollectionLineInput(collection_id=line.collection_id, quantity=line.quantity)
+                OrderCollectionLineInput(
+                    collection_id=line.collection_id,
+                    quantity=line.quantity,
+                    selections=next(
+                        (
+                            payload_line.selections
+                            for payload_line in payload.collection_lines
+                            if payload_line.collection_id == line.collection_id
+                        ),
+                        None,
+                    ),
+                )
                 for line in validated_lines
             ],
             delivery_fee=delivery_fee,
@@ -145,7 +156,18 @@ class CustomerCheckoutService:
         snapshot_result = self.profitability.build_order_snapshots(
             product_lines=[],
             collection_lines=[
-                OrderCollectionLineInput(collection_id=line.collection_id, quantity=line.quantity)
+                OrderCollectionLineInput(
+                    collection_id=line.collection_id,
+                    quantity=line.quantity,
+                    selections=next(
+                        (
+                            payload_line.selections
+                            for payload_line in payload.collection_lines
+                            if payload_line.collection_id == line.collection_id
+                        ),
+                        None,
+                    ),
+                )
                 for line in validated_lines
             ],
             delivery_fee=delivery_fee,

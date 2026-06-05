@@ -1,17 +1,16 @@
-"""Collection SQLAlchemy model."""
+"""Collection SQLAlchemy model — configurable package template."""
 
 import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums import CollectionSelectionMode
 from app.database.base import Base
-from app.models.enum_columns import collection_selection_mode_enum
 from app.models.base import TimestampMixin
 from app.models.collection_associations import (
+    collection_allowed_categories,
     collection_labour_charges,
     collection_tax_charges,
     collection_utility_charges,
@@ -22,12 +21,13 @@ if TYPE_CHECKING:
     from app.models.collection_package import CollectionPackage
     from app.models.collection_product_line import CollectionProductLine
     from app.models.labour_charge import LabourCharge
+    from app.models.product_category import ProductCategory
     from app.models.tax_charge import TaxCharge
     from app.models.utility_charge import UtilityCharge
 
 
 class Collection(Base, TimestampMixin):
-    """Customer-facing product bundle with aggregated costing."""
+    """Customer-facing package template with dynamic cookie composition."""
 
     __tablename__ = "collections"
 
@@ -44,8 +44,8 @@ class Collection(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    selling_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    buffer_amount: Mapped[Decimal] = mapped_column(
+    package_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    package_fee: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
         default=Decimal("0"),
@@ -53,16 +53,14 @@ class Collection(Base, TimestampMixin):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
-    selection_mode: Mapped[CollectionSelectionMode] = mapped_column(
-        collection_selection_mode_enum,
-        nullable=False,
-        default=CollectionSelectionMode.FIXED,
-    )
-    max_premium_cookies: Mapped[int | None] = mapped_column(nullable=True)
-    cookie_slot_count: Mapped[int | None] = mapped_column(nullable=True)
+
     package: Mapped["CollectionPackage"] = relationship(
         "CollectionPackage",
         back_populates="collections",
+    )
+    allowed_categories: Mapped[list["ProductCategory"]] = relationship(
+        "ProductCategory",
+        secondary=collection_allowed_categories,
     )
 
     product_lines: Mapped[list["CollectionProductLine"]] = relationship(

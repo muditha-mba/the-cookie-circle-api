@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -13,12 +14,16 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.models.delivery_area import DeliveryArea
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
+from app.models.order_collection_line_selection import OrderCollectionLineSelection
 from app.models.order_product_line import OrderProductLine
 from app.models.order_status_event import OrderStatusEvent
+from app.models.product import Product
+from app.repositories.collection_repository import CollectionRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.delivery_area_repository import DeliveryAreaRepository
 from app.repositories.order_repository import OrderRepository
 from app.schemas.delivery_area import DeliveryAreaSummary
+from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.order import (
     OrderCollectionLineInput,
     OrderCollectionLineResponse,
@@ -41,6 +46,7 @@ from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.business_setting_service import BusinessSettingService
 from app.services.delivery_fee_service import resolve_delivery_fee
 from app.services.delivery_schedule_service import DeliveryScheduleService
+from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.product_cost_service import _money
 
@@ -53,6 +59,13 @@ _STATUS_TIMESTAMP_FIELDS: dict[OrderStatus, str] = {
 }
 
 
+@dataclass(frozen=True)
+class _ValidatedCollectionLine:
+    collection_id: uuid.UUID
+    quantity: Decimal
+    selection_rows: list[tuple[Product, Decimal]]
+
+
 class OrderService:
     """Handles order CRUD; profitability snapshots via OrderProfitabilityService."""
 
@@ -61,8 +74,10 @@ class OrderService:
         self.orders = OrderRepository(db)
         self.customers = CustomerRepository(db)
         self.delivery_areas = DeliveryAreaRepository(db)
+        self.collections = CollectionRepository(db)
         self.business_settings = BusinessSettingService(db)
         self.profitability = OrderProfitabilityService(db)
+        self.selection_validator = CollectionSelectionValidator(db)
 
     def create(self, payload: OrderCreate) -> OrderDetailResponse:
         customer = self.customers.get_by_id(payload.customer_id)
@@ -80,6 +95,7 @@ class OrderService:
             delivery_day=settings.delivery_day,
         )
 
+        validated_collections = self._validate_collection_lines(payload.collection_lines)
         snapshot_result = self.profitability.build_order_snapshots(
             product_lines=payload.product_lines,
             collection_lines=payload.collection_lines,
@@ -103,6 +119,7 @@ class OrderService:
         self.profitability.apply_snapshots_to_order(order, snapshot_result)
         order.product_lines = snapshot_result.product_lines
         order.collection_lines = snapshot_result.collection_lines
+        self._attach_selection_snapshots(order, validated_collections)
         order.status_events = [OrderStatusEvent(status=payload.status)]
         self._apply_lifecycle_timestamp(order, payload.status)
 
@@ -204,10 +221,22 @@ class OrderService:
                 payload.collection_lines
                 if payload.collection_lines is not None
                 else [
-                    OrderCollectionLineInput(collection_id=line.collection_id, quantity=line.quantity)
+                    OrderCollectionLineInput(
+                        collection_id=line.collection_id,
+                        quantity=line.quantity,
+                        selections=[
+                            CollectionCookieSelectionInput(
+                                product_id=selection.product_id,
+                                quantity=selection.quantity,
+                            )
+                            for selection in (line.selections or [])
+                        ]
+                        or None,
+                    )
                     for line in order.collection_lines
                 ]
             )
+            validated_collections = self._validate_collection_lines(collection_inputs)
 
             delivery_area = None
             if order.delivery_area_id:
@@ -226,6 +255,7 @@ class OrderService:
             self.db.flush()
             order.product_lines = snapshot_result.product_lines
             order.collection_lines = snapshot_result.collection_lines
+            self._attach_selection_snapshots(order, validated_collections)
             self.profitability.apply_snapshots_to_order(order, snapshot_result)
 
         if payload.status is not None:
@@ -351,6 +381,49 @@ class OrderService:
                 for selection in (line.selections or [])
             ],
         )
+
+    def _validate_collection_lines(
+        self,
+        lines: list[OrderCollectionLineInput],
+    ) -> list[_ValidatedCollectionLine]:
+        validated: list[_ValidatedCollectionLine] = []
+        for line in lines:
+            collection = self.collections.get_by_id(line.collection_id)
+            if not collection or not collection.is_active:
+                raise NotFoundError("Collection not found")
+            selection_rows = self.selection_validator.validate(
+                collection,
+                selections=line.selections,
+                line_quantity=line.quantity,
+            )
+            validated.append(
+                _ValidatedCollectionLine(
+                    collection_id=line.collection_id,
+                    quantity=line.quantity,
+                    selection_rows=selection_rows,
+                ),
+            )
+        return validated
+
+    @staticmethod
+    def _attach_selection_snapshots(
+        order: Order,
+        validated_lines: list[_ValidatedCollectionLine],
+    ) -> None:
+        line_by_collection = {line.collection_id: line for line in order.collection_lines}
+        for validated in validated_lines:
+            order_line = line_by_collection.get(validated.collection_id)
+            if order_line is None:
+                continue
+            order_line.selections = [
+                OrderCollectionLineSelection(
+                    product_id=product.id,
+                    quantity=qty,
+                    product_name_snapshot=product.name,
+                    is_premium_snapshot=product.is_premium,
+                )
+                for product, qty in validated.selection_rows
+            ]
 
     def _to_detail(self, order: Order) -> OrderDetailResponse:
         customer = order.customer

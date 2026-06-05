@@ -22,6 +22,7 @@ from app.routers.suppliers import router as suppliers_router
 from app.routers.health import router as health_router
 from app.routers.labour_charges import router as labour_charges_router
 from app.routers.product_item_types import router as product_item_types_router
+from app.routers.product_categories import router as product_categories_router
 from app.routers.product_items import router as product_items_router
 from app.routers.products import router as products_router
 from app.routers.tax_charges import router as tax_charges_router
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(labour_charges_router, prefix=settings.api_v1_prefix)
     app.include_router(tax_charges_router, prefix=settings.api_v1_prefix)
     app.include_router(products_router, prefix=settings.api_v1_prefix)
+    app.include_router(product_categories_router, prefix=settings.api_v1_prefix)
     app.include_router(collections_router, prefix=settings.api_v1_prefix)
     app.include_router(collection_packages_router, prefix=settings.api_v1_prefix)
     app.include_router(business_settings_router, prefix=settings.api_v1_prefix)

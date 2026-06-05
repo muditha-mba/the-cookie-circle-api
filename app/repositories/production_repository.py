@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.order import Order
+from app.models.order_collection_line import OrderCollectionLine
 
 
 class ProductionRepository:
@@ -40,7 +41,9 @@ class ProductionRepository:
             .options(
                 selectinload(Order.customer),
                 selectinload(Order.product_lines),
-                selectinload(Order.collection_lines),
+                selectinload(Order.collection_lines).selectinload(
+                    OrderCollectionLine.selections,
+                ),
             )
             .where(Order.scheduled_delivery_date == delivery_date)
             .order_by(Order.order_number.asc())

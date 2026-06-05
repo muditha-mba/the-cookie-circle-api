@@ -7,6 +7,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.collection import Collection
+from app.models.product_category import ProductCategory
 from app.models.collection_item_line import CollectionItemLine
 from app.models.collection_package import CollectionPackage
 from app.models.collection_product_line import CollectionProductLine
@@ -26,7 +27,8 @@ class CollectionRepository:
         "package": CollectionPackage.name,
         "created_at": Collection.created_at,
         "is_active": Collection.is_active,
-        "selling_price": Collection.selling_price,
+        "package_size": Collection.package_size,
+        "package_fee": Collection.package_fee,
     }
 
     def __init__(self, db: Session) -> None:
@@ -50,6 +52,7 @@ class CollectionRepository:
             selectinload(Collection.labour_charges),
             selectinload(Collection.tax_charges),
             selectinload(Collection.package),
+            selectinload(Collection.allowed_categories),
         )
 
     def get_for_costing_by_ids(self, ids: list[uuid.UUID]) -> list[Collection]:
@@ -111,9 +114,17 @@ class CollectionRepository:
         total = int(self.db.scalar(count_stmt) or 0)
         sort_column = self.SORTABLE_COLUMNS.get(sort_by, Collection.created_at)
         order = asc(sort_column) if sort_order == "asc" else desc(sort_column)
-        stmt = stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)
+        stmt = (
+            stmt.options(
+                selectinload(Collection.package),
+                selectinload(Collection.allowed_categories),
+            )
+            .order_by(order)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
 
-        return list(self.db.scalars(stmt).all()), total
+        return list(self.db.scalars(stmt).unique().all()), total
 
     @staticmethod
     def total_pages(total: int, page_size: int) -> int:
