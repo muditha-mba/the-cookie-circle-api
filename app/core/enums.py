@@ -86,12 +86,28 @@ class OrderSource(str, enum.Enum):
     """Channel where the order originated."""
 
     WEBSITE = "website"
+    ADMIN = "admin"
     WHATSAPP = "whatsapp"
     INSTAGRAM = "instagram"
     FACEBOOK = "facebook"
     MANUAL = "manual"
     WALK_IN = "walk_in"
     PHONE = "phone"
+
+
+class OrderType(str, enum.Enum):
+    """Customer-facing order classification for operations and analytics."""
+
+    WEEKLY_DELIVERY = "weekly_delivery"
+    CATERING = "catering"
+
+
+class CollectionSelectionMode(str, enum.Enum):
+    """How customers configure cookies within a collection."""
+
+    FIXED = "fixed"
+    FLEXIBLE = "flexible"
+    PREMIUM_LIMITED = "premium_limited"
 
 
 class PaymentMethod(str, enum.Enum):

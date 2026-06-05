@@ -3,11 +3,13 @@
 from sqlalchemy import Enum
 
 from app.core.enums import (
+    CollectionSelectionMode,
     CommunicationType,
     CustomerSource,
     MarketingSource,
     OrderSource,
     OrderStatus,
+    OrderType,
     PaymentMethod,
     PaymentStatus,
     ProductionBatchStatus,
@@ -58,6 +60,18 @@ payment_status_enum = Enum(
 order_status_enum = Enum(
     OrderStatus,
     name="order_status",
+    values_callable=_enum_values,
+)
+
+order_type_enum = Enum(
+    OrderType,
+    name="order_type",
+    values_callable=_enum_values,
+)
+
+collection_selection_mode_enum = Enum(
+    CollectionSelectionMode,
+    name="collection_selection_mode",
     values_callable=_enum_values,
 )
 

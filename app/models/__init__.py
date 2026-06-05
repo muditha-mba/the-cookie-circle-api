@@ -19,6 +19,7 @@ from app.models.labour_charge import LabourCharge
 from app.models.delivery_area import DeliveryArea
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
+from app.models.order_collection_line_selection import OrderCollectionLineSelection
 from app.models.order_product_line import OrderProductLine
 from app.models.order_status_event import OrderStatusEvent
 from app.models.password_reset_token import PasswordResetToken
@@ -53,6 +54,7 @@ __all__ = [
     "DeliveryArea",
     "Order",
     "OrderCollectionLine",
+    "OrderCollectionLineSelection",
     "OrderProductLine",
     "OrderStatusEvent",
     "PasswordResetToken",

@@ -4,7 +4,7 @@ import uuid
 from math import ceil
 
 from sqlalchemy import asc, desc, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.collection import Collection
 from app.models.customer import Customer
@@ -37,7 +37,10 @@ class OrderRepository:
             selectinload(Order.customer).joinedload(Customer.user),
             selectinload(Order.delivery_area),
             selectinload(Order.product_lines).joinedload(OrderProductLine.product),
-            selectinload(Order.collection_lines).joinedload(OrderCollectionLine.collection),
+            selectinload(Order.collection_lines).options(
+                joinedload(OrderCollectionLine.collection),
+                selectinload(OrderCollectionLine.selections),
+            ),
             selectinload(Order.status_events),
         )
 

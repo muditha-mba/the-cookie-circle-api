@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.enums import CollectionSelectionMode
 from app.database.base import Base
+from app.models.enum_columns import collection_selection_mode_enum
 from app.models.base import TimestampMixin
 from app.models.collection_associations import (
     collection_labour_charges,
@@ -51,6 +53,13 @@ class Collection(Base, TimestampMixin):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
+    selection_mode: Mapped[CollectionSelectionMode] = mapped_column(
+        collection_selection_mode_enum,
+        nullable=False,
+        default=CollectionSelectionMode.FIXED,
+    )
+    max_premium_cookies: Mapped[int | None] = mapped_column(nullable=True)
+    cookie_slot_count: Mapped[int | None] = mapped_column(nullable=True)
     package: Mapped["CollectionPackage"] = relationship(
         "CollectionPackage",
         back_populates="collections",

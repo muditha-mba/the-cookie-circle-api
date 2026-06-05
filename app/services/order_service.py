@@ -22,6 +22,7 @@ from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.order import (
     OrderCollectionLineInput,
     OrderCollectionLineResponse,
+    OrderCollectionLineSelectionResponse,
     OrderCreate,
     OrderCustomerSummary,
     OrderDetailResponse,
@@ -131,6 +132,7 @@ class OrderService:
                 order_number=order.order_number,
                 customer_id=order.customer_id,
                 customer_name=f"{order.customer.first_name} {order.customer.last_name}",
+                order_type=order.order_type,
                 source=order.source,
                 payment_method=order.payment_method,
                 payment_status=order.payment_status,
@@ -344,6 +346,10 @@ class OrderService:
             line_revenue_snapshot=_money(line.collection_selling_price_snapshot * line.quantity),
             line_cost_snapshot=_money(line.collection_cost_snapshot * line.quantity),
             line_profit_snapshot=_money(line.collection_profit_snapshot * line.quantity),
+            selections=[
+                OrderCollectionLineSelectionResponse.model_validate(selection)
+                for selection in (line.selections or [])
+            ],
         )
 
     def _to_detail(self, order: Order) -> OrderDetailResponse:
@@ -367,6 +373,8 @@ class OrderService:
             delivery_area=(
                 DeliveryAreaSummary.model_validate(delivery_area) if delivery_area else None
             ),
+            order_type=order.order_type,
+            event_name=order.event_name,
             source=order.source,
             payment_method=order.payment_method,
             payment_status=order.payment_status,

@@ -49,6 +49,7 @@ class Product(Base, TimestampMixin):
     production_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
+    is_premium: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
 
     recipe_lines: Mapped[list["ProductRecipeLine"]] = relationship(
         "ProductRecipeLine",

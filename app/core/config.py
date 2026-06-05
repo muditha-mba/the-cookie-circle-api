@@ -75,6 +75,12 @@ class Settings(BaseSettings):
         alias="FRONTEND_ADMIN_URL",
     )
 
+    whatsapp_business_phone: str = Field(
+        default="94771234567",
+        alias="WHATSAPP_BUSINESS_PHONE",
+        description="E.164 digits only, no plus sign, for wa.me links",
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origin_list(self) -> list[str]:

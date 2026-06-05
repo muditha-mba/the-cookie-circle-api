@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enums import OrderSource, OrderStatus, PaymentMethod, PaymentStatus
+from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.order_profitability import OrderFinancialSnapshot
 
@@ -96,6 +96,18 @@ class OrderProductLineResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OrderCollectionLineSelectionResponse(BaseModel):
+    """Per-cookie selection snapshot on a collection line."""
+
+    id: UUID
+    product_id: UUID
+    quantity: Decimal
+    product_name_snapshot: str
+    is_premium_snapshot: bool
+
+    model_config = {"from_attributes": True}
+
+
 class OrderCollectionLineResponse(BaseModel):
     """Collection line with immutable snapshots (quantities applied for line totals)."""
 
@@ -109,6 +121,7 @@ class OrderCollectionLineResponse(BaseModel):
     line_revenue_snapshot: Decimal
     line_cost_snapshot: Decimal
     line_profit_snapshot: Decimal
+    selections: list[OrderCollectionLineSelectionResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -164,6 +177,7 @@ class OrderSummaryResponse(BaseModel):
     order_number: str
     customer_id: UUID
     customer_name: str
+    order_type: OrderType
     source: OrderSource
     payment_method: PaymentMethod
     payment_status: PaymentStatus
@@ -184,6 +198,8 @@ class OrderDetailResponse(OrderDeliveryFields):
     order_number: str
     customer: OrderCustomerSummary
     delivery_area: DeliveryAreaSummary | None
+    order_type: OrderType
+    event_name: str | None = None
     source: OrderSource
     payment_method: PaymentMethod
     payment_status: PaymentStatus

@@ -13,6 +13,7 @@ from app.models.base import TimestampMixin
 if TYPE_CHECKING:
     from app.models.collection import Collection
     from app.models.order import Order
+    from app.models.order_collection_line_selection import OrderCollectionLineSelection
 
 
 class OrderCollectionLine(Base, TimestampMixin):
@@ -45,3 +46,9 @@ class OrderCollectionLine(Base, TimestampMixin):
 
     order: Mapped["Order"] = relationship("Order", back_populates="collection_lines")
     collection: Mapped["Collection"] = relationship("Collection")
+    selections: Mapped[list["OrderCollectionLineSelection"]] = relationship(
+        "OrderCollectionLineSelection",
+        back_populates="order_collection_line",
+        cascade="all, delete-orphan",
+        order_by="OrderCollectionLineSelection.created_at",
+    )

@@ -224,6 +224,10 @@ class AuthService:
             "refresh_token": raw_refresh,
         }
 
+    def send_account_verification(self, user: User) -> None:
+        """Issue and email a verification link (does not block ordering)."""
+        self._issue_verification_token(user)
+
     def _issue_verification_token(self, user: User) -> None:
         raw_token = generate_secure_token()
         expires_at = datetime.now(UTC) + timedelta(

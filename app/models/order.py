@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums import OrderSource, OrderStatus, PaymentMethod, PaymentStatus
+from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
 from app.database.base import Base
 from app.models.enum_columns import (
     order_source_enum,
     order_status_enum,
+    order_type_enum,
     payment_method_enum,
     payment_status_enum,
 )
@@ -50,6 +51,12 @@ class Order(Base, TimestampMixin):
         index=True,
     )
     source: Mapped[OrderSource] = mapped_column(order_source_enum, nullable=False)
+    order_type: Mapped[OrderType] = mapped_column(
+        order_type_enum,
+        nullable=False,
+        default=OrderType.WEEKLY_DELIVERY,
+    )
+    event_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     payment_method: Mapped[PaymentMethod] = mapped_column(payment_method_enum, nullable=False)
     payment_status: Mapped[PaymentStatus] = mapped_column(
         payment_status_enum,
