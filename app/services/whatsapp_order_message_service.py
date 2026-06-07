@@ -4,7 +4,7 @@ from decimal import Decimal
 from urllib.parse import quote
 
 from app.core.config import settings
-from app.core.enums import OrderType
+from app.core.enums import OrderType, PaymentMethod
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 
@@ -40,11 +40,19 @@ class WhatsAppOrderMessageService:
         if order.event_name:
             lines.append(f"*Event:* {order.event_name}")
 
-        lines.append("")
-        lines.append("*Collections*")
+        if order.collection_lines:
+            lines.append("")
+            lines.append("*Collections*")
+            for collection_line in order.collection_lines:
+                lines.extend(cls._format_collection_line(collection_line))
 
-        for collection_line in order.collection_lines:
-            lines.extend(cls._format_collection_line(collection_line))
+        if order.product_lines:
+            lines.append("")
+            lines.append("*Cookies*")
+            for product_line in order.product_lines:
+                lines.append(
+                    f"- {product_line.product_name_snapshot} ×{product_line.quantity.normalize()}",
+                )
 
         lines.extend(["", "*Delivery & Customer*"])
         lines.append(f"*Delivery Date:* {order.scheduled_delivery_date.isoformat()}")
@@ -75,12 +83,25 @@ class WhatsAppOrderMessageService:
             lines.append(order.customer_notes)
 
         lines.extend(["", "*Payment Summary*"])
-        lines.append(f"*Collections Subtotal:* {cls._format_lkr(order.collections_subtotal_snapshot)}")
+        if order.products_subtotal_snapshot and order.products_subtotal_snapshot > 0:
+            lines.append(f"*Cookies Subtotal:* {cls._format_lkr(order.products_subtotal_snapshot)}")
+        if order.collections_subtotal_snapshot and order.collections_subtotal_snapshot > 0:
+            lines.append(f"*Collections Subtotal:* {cls._format_lkr(order.collections_subtotal_snapshot)}")
         lines.append(f"*Delivery Fee:* {cls._format_lkr(order.delivery_fee_snapshot)}")
         lines.append(f"*Total:* {cls._format_lkr(order.total_revenue_snapshot)}")
-        lines.append("*Payment Method:* Cash on delivery")
+        lines.append(f"*Payment Method:* {cls._payment_method_label(order.payment_method)}")
 
         return "\n".join(lines)
+
+    @staticmethod
+    def _payment_method_label(method: PaymentMethod) -> str:
+        labels = {
+            PaymentMethod.CASH_ON_DELIVERY: "Cash on delivery",
+            PaymentMethod.BANK_TRANSFER: "Bank transfer",
+            PaymentMethod.STRIPE: "Card payment",
+            PaymentMethod.MANUAL: "Manual",
+        }
+        return labels.get(method, str(method).replace("_", " ").title())
 
     @staticmethod
     def _format_collection_line(line: OrderCollectionLine) -> list[str]:

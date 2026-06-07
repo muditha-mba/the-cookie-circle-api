@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.core.enums import OrderSource, OrderStatus, PaymentMethod, PaymentStatus
+from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
 from app.repositories.analytics_repository import (
     ONLINE_ORDER_SOURCES,
     AnalyticsRepository,
@@ -70,6 +70,11 @@ SOURCE_BUCKETS: tuple[tuple[str, str], ...] = (
     ("phone", "Phone"),
     ("walk_in", "Walk In"),
     ("online", "Online"),
+)
+
+ORDER_TYPE_BUCKETS: tuple[tuple[str, str], ...] = (
+    (OrderType.WEEKLY_DELIVERY.value, "Weekly Delivery"),
+    (OrderType.CATERING.value, "Catering & Events"),
 )
 
 
@@ -337,6 +342,12 @@ class AnalyticsOrderService:
             date_range=date_range_response(date_range),
             items=_group_source_distribution(rows),
         )
+
+    def get_order_type_distribution(
+        self,
+        params: AnalyticsQueryParams,
+    ) -> OrderDistributionResponse:
+        return self._distribution(params, self.repo.fetch_order_type_distribution, ORDER_TYPE_BUCKETS)
 
     def get_delivery_area_distribution(
         self,

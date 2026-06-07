@@ -23,6 +23,7 @@ class BusinessSettingService:
 
     DEFAULTS: dict[str, str] = {
         keys.DELIVERY_FEE: "0.00",
+        keys.USE_FIXED_DELIVERY_FEE: "false",
         keys.ORDER_CUTOFF_DAY: Weekday.THURSDAY.value,
         keys.DELIVERY_DAY: Weekday.SATURDAY.value,
         keys.BUSINESS_PHONE: "",
@@ -47,6 +48,8 @@ class BusinessSettingService:
         current = self._load_map()
         if payload.delivery_fee is not None:
             current[keys.DELIVERY_FEE] = str(payload.delivery_fee)
+        if payload.use_fixed_delivery_fee is not None:
+            current[keys.USE_FIXED_DELIVERY_FEE] = str(payload.use_fixed_delivery_fee).lower()
         if payload.order_cutoff_day is not None:
             current[keys.ORDER_CUTOFF_DAY] = payload.order_cutoff_day.value
         if payload.delivery_day is not None:
@@ -98,6 +101,7 @@ class BusinessSettingService:
 
         return BusinessSettingsResponse(
             delivery_fee=delivery_fee,
+            use_fixed_delivery_fee=data[keys.USE_FIXED_DELIVERY_FEE].lower() == "true",
             order_cutoff_day=parse_weekday(data[keys.ORDER_CUTOFF_DAY]),
             delivery_day=parse_weekday(data[keys.DELIVERY_DAY]),
             business_phone=data[keys.BUSINESS_PHONE],

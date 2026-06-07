@@ -39,6 +39,12 @@ class OrderCollectionLineSelection(Base, TimestampMixin):
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     product_name_snapshot: Mapped[str] = mapped_column(String(200), nullable=False)
     is_premium_snapshot: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    product_selling_price_snapshot: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+    product_cost_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    product_profit_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     order_collection_line: Mapped["OrderCollectionLine"] = relationship(
         "OrderCollectionLine",

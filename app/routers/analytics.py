@@ -173,6 +173,14 @@ def get_order_order_source_distribution(
     return service.get_order_source_distribution(params)
 
 
+@router.get("/orders/order-type-distribution", response_model=OrderDistributionResponse)
+def get_order_type_distribution(
+    params: Annotated[AnalyticsQueryParams, Depends()],
+    service: Annotated[AnalyticsOrderService, Depends(get_analytics_order_service)],
+) -> OrderDistributionResponse:
+    return service.get_order_type_distribution(params)
+
+
 @router.get("/orders/delivery-area-distribution", response_model=OrderDistributionResponse)
 def get_order_delivery_area_distribution(
     params: Annotated[AnalyticsQueryParams, Depends()],

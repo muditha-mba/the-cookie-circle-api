@@ -11,10 +11,14 @@ def resolve_delivery_fee(
     settings: BusinessSettingsResponse,
     delivery_area: DeliveryArea | None,
 ) -> Decimal:
-    """Use area override when set; pickup-only areas default to zero; else business default."""
-    if delivery_area is not None:
-        if delivery_area.delivery_fee_override is not None:
-            return _money(delivery_area.delivery_fee_override)
-        if delivery_area.pickup_only:
-            return Decimal("0.00")
-    return _money(settings.delivery_fee)
+    """Resolve delivery fee based on fixed vs area-based business configuration."""
+    if delivery_area is not None and delivery_area.pickup_only:
+        return Decimal("0.00")
+
+    if settings.use_fixed_delivery_fee:
+        return _money(settings.delivery_fee)
+
+    if delivery_area is not None and delivery_area.delivery_fee_override is not None:
+        return _money(delivery_area.delivery_fee_override)
+
+    return Decimal("0.00")

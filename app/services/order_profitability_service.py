@@ -257,6 +257,7 @@ class OrderProfitabilityService:
             collection_selling_price_snapshot=unit_price,
             collection_cost_snapshot=unit_cost,
             collection_profit_snapshot=unit_profit,
+            package_fee_snapshot=_money(collection.package_fee),
         )
 
     @staticmethod

@@ -94,6 +94,7 @@ class OrderProductLineResponse(BaseModel):
     line_revenue_snapshot: Decimal
     line_cost_snapshot: Decimal
     line_profit_snapshot: Decimal
+    margin_percentage_snapshot: Decimal
 
     model_config = {"from_attributes": True}
 
@@ -106,6 +107,14 @@ class OrderCollectionLineSelectionResponse(BaseModel):
     quantity: Decimal
     product_name_snapshot: str
     is_premium_snapshot: bool
+    product_selling_price_snapshot: Decimal | None = None
+    product_cost_snapshot: Decimal | None = None
+    product_profit_snapshot: Decimal | None = None
+    line_revenue_snapshot: Decimal | None = None
+    line_cost_snapshot: Decimal | None = None
+    line_profit_snapshot: Decimal | None = None
+    margin_percentage_snapshot: Decimal | None = None
+    profit_contribution_percentage_snapshot: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -120,9 +129,13 @@ class OrderCollectionLineResponse(BaseModel):
     collection_selling_price_snapshot: Decimal
     collection_cost_snapshot: Decimal
     collection_profit_snapshot: Decimal
+    package_fee_snapshot: Decimal | None = None
+    cookies_subtotal_snapshot: Decimal | None = None
+    total_cookies_per_pack: Decimal | None = None
     line_revenue_snapshot: Decimal
     line_cost_snapshot: Decimal
     line_profit_snapshot: Decimal
+    margin_percentage_snapshot: Decimal
     selections: list[OrderCollectionLineSelectionResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}

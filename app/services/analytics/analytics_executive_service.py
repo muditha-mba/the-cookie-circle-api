@@ -119,8 +119,14 @@ class AnalyticsExecutiveService:
         return ExecutiveRevenueContributionResponse(
             date_range=date_range_response(date_range),
             items=[
-                ExecutiveRevenueContributionItem(name="Products", value=product_value),
-                ExecutiveRevenueContributionItem(name="Collections", value=collection_value),
+                ExecutiveRevenueContributionItem(
+                    name="Direct Cookies (Catering)",
+                    value=product_value,
+                ),
+                ExecutiveRevenueContributionItem(
+                    name="Collections (Weekly Delivery)",
+                    value=collection_value,
+                ),
                 ExecutiveRevenueContributionItem(name="Delivery Fees", value=delivery_fees),
             ],
         )

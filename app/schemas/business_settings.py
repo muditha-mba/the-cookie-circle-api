@@ -11,6 +11,7 @@ class BusinessSettingsResponse(BaseModel):
     """Typed view of operational business settings."""
 
     delivery_fee: Decimal
+    use_fixed_delivery_fee: bool
     order_cutoff_day: Weekday
     delivery_day: Weekday
     business_phone: str
@@ -24,6 +25,7 @@ class BusinessSettingsUpdate(BaseModel):
     """Update business settings."""
 
     delivery_fee: Decimal | None = Field(default=None, ge=0)
+    use_fixed_delivery_fee: bool | None = None
     order_cutoff_day: Weekday | None = None
     delivery_day: Weekday | None = None
     business_phone: str | None = Field(default=None, max_length=50)

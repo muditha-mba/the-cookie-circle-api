@@ -12,6 +12,7 @@ from app.core.enums import (
     MarketingSource,
     OrderSource,
     OrderStatus,
+    OrderType,
     PaymentStatus,
 )
 from app.models.customer import Customer
@@ -556,6 +557,20 @@ class AnalyticsRepository:
         )
         rows = self.db.execute(stmt).all()
         return [(str(row[0]), int(row[1] or 0)) for row in rows]
+
+    def fetch_order_type_distribution(
+        self,
+        date_range: AnalyticsDateRange,
+    ) -> list[tuple[str, int]]:
+        filt = self._order_analytics_filter(date_range)
+        stmt = (
+            select(Order.order_type, func.count(Order.id))
+            .where(filt)
+            .group_by(Order.order_type)
+            .order_by(desc(func.count(Order.id)))
+        )
+        rows = self.db.execute(stmt).all()
+        return [(str(row[0].value if isinstance(row[0], OrderType) else row[0]), int(row[1] or 0)) for row in rows]
 
     def fetch_order_delivery_area_distribution(
         self,
