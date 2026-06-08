@@ -7,7 +7,13 @@ class EmailService(ABC):
     """Abstract email service for verification and password reset flows."""
 
     @abstractmethod
-    def send_verification_email(self, *, to_email: str, verification_url: str) -> None:
+    def send_verification_email(
+        self,
+        *,
+        to_email: str,
+        verification_url: str,
+        dev_verification_url: str | None = None,
+    ) -> None:
         """Send an email verification link."""
 
     @abstractmethod

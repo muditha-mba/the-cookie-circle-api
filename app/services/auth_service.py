@@ -16,6 +16,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
+from app.repositories.customer_repository import CustomerRepository
 from app.repositories.email_verification_token_repository import (
     EmailVerificationTokenRepository,
 )
@@ -34,6 +35,7 @@ from app.schemas.auth import (
     UserResponse,
     VerifyEmailRequest,
 )
+from app.services.customer_identity_service import CustomerIdentityService
 from app.services.email import get_email_service
 from app.utils.tokens import generate_secure_token, hash_token
 
@@ -44,6 +46,7 @@ class AuthService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.users = UserRepository(db)
+        self.customers = CustomerRepository(db)
         self.refresh_tokens = RefreshTokenRepository(db)
         self.email_tokens = EmailVerificationTokenRepository(db)
         self.password_tokens = PasswordResetTokenRepository(db)
@@ -61,12 +64,17 @@ class AuthService:
             last_name=payload.last_name,
             email_verified=False,
         )
+        CustomerIdentityService(self.db).link_registration_to_existing_customer(user)
         self._issue_verification_token(user)
         self.db.commit()
         self.db.refresh(user)
         return UserResponse.model_validate(user)
 
     def verify_email(self, payload: VerifyEmailRequest) -> UserResponse:
+        dev_user = self._verify_email_with_dev_token(payload)
+        if dev_user is not None:
+            return UserResponse.model_validate(dev_user)
+
         token_record = self.email_tokens.get_valid_by_hash(hash_token(payload.token))
         if not token_record:
             raise ValidationError("Invalid or expired verification token")
@@ -77,6 +85,37 @@ class AuthService:
         self.db.commit()
         self.db.refresh(user)
         return UserResponse.model_validate(user)
+
+    def _verify_email_with_dev_token(
+        self,
+        payload: VerifyEmailRequest,
+    ) -> User | None:
+        """Reusable dev shortcut — never active outside development."""
+        if not settings.is_development:
+            return None
+
+        dev_token = (settings.dev_email_verification_token or "").strip()
+        if not dev_token or payload.token != dev_token:
+            return None
+
+        if not payload.email:
+            raise ValidationError(
+                "Email is required when using the development verification token",
+            )
+
+        user = self.users.get_by_email(payload.email)
+        if not user:
+            raise ValidationError("No account found for that email address")
+        if user.role != UserRole.CUSTOMER:
+            raise ValidationError("Only customer accounts can be verified")
+        if user.email_verified:
+            return user
+
+        self.users.mark_email_verified(user)
+        self.db.commit()
+        self.db.refresh(user)
+        logger.info("Development email verification applied for %s", user.email)
+        return user
 
     def resend_verification(self, payload: ResendVerificationRequest) -> None:
         user = self.users.get_by_email(payload.email)
@@ -241,7 +280,20 @@ class AuthService:
         verification_url = (
             f"{settings.frontend_client_url}/verify-email?token={raw_token}"
         )
+        dev_verification_url = self._dev_verification_url(user.email)
         self.email_service.send_verification_email(
             to_email=user.email,
             verification_url=verification_url,
+            dev_verification_url=dev_verification_url,
+        )
+
+    def _dev_verification_url(self, email: str) -> str | None:
+        if not settings.is_development:
+            return None
+        dev_token = (settings.dev_email_verification_token or "").strip()
+        if not dev_token:
+            return None
+        return (
+            f"{settings.frontend_client_url}/verify-email"
+            f"?token={dev_token}&email={email}"
         )

@@ -5,8 +5,11 @@ from app.models.business_setting import BusinessSetting
 from app.models.collection import Collection
 from app.models.collection_package import CollectionPackage
 from app.models.customer import Customer
+from app.models.customer_address import CustomerAddress
 from app.models.customer_communication import CustomerCommunication
 from app.models.customer_note import CustomerNote
+from app.models.order_review import OrderReview
+from app.models.order_review_item import OrderReviewItem
 from app.models.collection_associations import (
     collection_allowed_categories,
     collection_labour_charges,
@@ -47,8 +50,11 @@ __all__ = [
     "Collection",
     "CollectionPackage",
     "Customer",
+    "CustomerAddress",
     "CustomerCommunication",
     "CustomerNote",
+    "OrderReview",
+    "OrderReviewItem",
     "CollectionItemLine",
     "CollectionProductLine",
     "ProductCategory",

@@ -20,6 +20,7 @@ from app.core.enums import (
 )
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.security import hash_password
+from app.models.delivery_area import DeliveryArea
 from app.models.customer import Customer
 from app.models.order import Order
 from app.services.order_selection_snapshot import build_order_collection_line_selection
@@ -41,6 +42,7 @@ from app.schemas.client_ordering import (
 )
 from app.schemas.order import OrderCollectionLineInput, OrderProductLineInput
 from app.services.auth_service import AuthService
+from app.services.customer_identity_service import CustomerIdentityService
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.customer_delivery_date_service import (
@@ -153,8 +155,6 @@ class CustomerCheckoutService:
 
     def checkout(self, payload: ClientCheckoutRequest) -> ClientCheckoutResponse:
         if payload.create_account:
-            if not payload.customer.email:
-                raise ValidationError("Email is required to create an account.")
             if self.users.get_by_email(normalize_email(payload.customer.email)):
                 raise ConflictError("An account with this email already exists.")
 
@@ -166,6 +166,14 @@ class CustomerCheckoutService:
         snapshot_result = self._build_snapshots(payload, validated, delivery_fee)
 
         customer = self._resolve_customer(payload)
+        shipping = payload.customer.shipping_address
+        billing = (
+            shipping
+            if payload.customer.billing_same_as_shipping
+            else payload.customer.billing_address
+        )
+        assert billing is not None
+
         order = Order(
             order_number=self._generate_order_number(),
             customer_id=customer.id,
@@ -182,13 +190,19 @@ class CustomerCheckoutService:
             delivery_contact_name=f"{payload.customer.first_name} {payload.customer.last_name}".strip(),
             delivery_phone_primary=payload.customer.phone,
             delivery_phone_secondary=payload.customer.phone_secondary,
-            delivery_address_line_1=payload.customer.address_line_1,
-            delivery_address_line_2=payload.customer.address_line_2,
-            delivery_city=payload.customer.city,
-            delivery_postal_code=payload.customer.postal_code,
-            delivery_landmark=payload.customer.landmark,
+            delivery_address_line_1=shipping.address_line_1,
+            delivery_address_line_2=shipping.address_line_2,
+            delivery_city=shipping.city,
+            delivery_postal_code=shipping.postal_code,
+            delivery_landmark=shipping.landmark,
             delivery_latitude=payload.customer.delivery_latitude,
             delivery_longitude=payload.customer.delivery_longitude,
+            billing_same_as_shipping=payload.customer.billing_same_as_shipping,
+            billing_address_line_1=billing.address_line_1,
+            billing_address_line_2=billing.address_line_2,
+            billing_city=billing.city,
+            billing_postal_code=billing.postal_code,
+            billing_landmark=billing.landmark,
         )
         self.profitability.apply_snapshots_to_order(order, snapshot_result)
         order.collection_lines = snapshot_result.collection_lines
@@ -202,7 +216,7 @@ class CustomerCheckoutService:
 
         account_created = False
         verification_sent = False
-        if payload.create_account and payload.customer.email and payload.account_password:
+        if payload.create_account and payload.account_password:
             user = self.users.create(
                 email=normalize_email(payload.customer.email),
                 password_hash=hash_password(payload.account_password),
@@ -357,23 +371,57 @@ class CustomerCheckoutService:
             raise ValidationError("Selected payment method is not available.")
 
     def _resolve_customer(self, payload: ClientCheckoutRequest) -> Customer:
-        email = normalize_email(payload.customer.email) if payload.customer.email else None
+        billing = (
+            payload.customer.shipping_address
+            if payload.customer.billing_same_as_shipping
+            else payload.customer.billing_address
+        )
+        assert billing is not None
+
+        email = normalize_email(payload.customer.email)
+        identity = CustomerIdentityService(self.db)
+        existing_user = self.users.get_by_email(email)
+        if existing_user and existing_user.role == UserRole.CUSTOMER:
+            customer = identity.ensure_customer_for_user(existing_user, commit=False)
+            self._sync_checkout_customer_profile(customer, payload, billing)
+            return customer
+
+        existing_customer = identity.resolve_customer_for_checkout_email(email)
+        if existing_customer is not None:
+            self._sync_checkout_customer_profile(existing_customer, payload, billing)
+            return existing_customer
+
         customer = Customer(
             first_name=payload.customer.first_name,
             last_name=payload.customer.last_name,
             email=email,
             phone=payload.customer.phone,
-            address_line_1=payload.customer.address_line_1,
-            address_line_2=payload.customer.address_line_2,
-            city=payload.customer.city,
-            postal_code=payload.customer.postal_code,
-            landmark=payload.customer.landmark,
+            address_line_1=billing.address_line_1,
+            address_line_2=billing.address_line_2,
+            city=billing.city,
+            postal_code=billing.postal_code,
+            landmark=billing.landmark,
             source=CustomerSource.GUEST,
             is_active=True,
         )
         self.customers.create(customer)
         self.db.flush()
         return customer
+
+    @staticmethod
+    def _sync_checkout_customer_profile(
+        customer: Customer,
+        payload: ClientCheckoutRequest,
+        billing,
+    ) -> None:
+        customer.first_name = payload.customer.first_name
+        customer.last_name = payload.customer.last_name
+        customer.phone = payload.customer.phone
+        customer.address_line_1 = billing.address_line_1
+        customer.address_line_2 = billing.address_line_2
+        customer.city = billing.city
+        customer.postal_code = billing.postal_code
+        customer.landmark = billing.landmark
 
     @staticmethod
     def _attach_selection_snapshots(

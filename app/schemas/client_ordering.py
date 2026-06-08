@@ -140,21 +140,35 @@ class EmailAvailabilityResponse(BaseModel):
     message: str
 
 
-class ClientCheckoutCustomer(BaseModel):
-    first_name: str = Field(min_length=1, max_length=100)
-    last_name: str = Field(min_length=1, max_length=100)
-    email: EmailStr | None = None
-    phone: str = Field(min_length=5, max_length=50)
-    phone_secondary: str | None = Field(default=None, max_length=50)
+class ClientCheckoutAddress(BaseModel):
     address_line_1: str = Field(min_length=1, max_length=255)
     address_line_2: str | None = Field(default=None, max_length=255)
     city: str = Field(min_length=1, max_length=100)
     postal_code: str | None = Field(default=None, max_length=20)
     landmark: str | None = Field(default=None, max_length=255)
+
+
+class ClientCheckoutCustomer(BaseModel):
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    phone: str = Field(min_length=5, max_length=50)
+    phone_secondary: str | None = Field(default=None, max_length=50)
+    shipping_address: ClientCheckoutAddress
+    billing_same_as_shipping: bool = True
+    billing_address: ClientCheckoutAddress | None = None
     delivery_latitude: Decimal | None = None
     delivery_longitude: Decimal | None = None
     order_notes: str | None = Field(default=None, max_length=5000)
     event_name: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_billing_address(self) -> "ClientCheckoutCustomer":
+        if self.billing_same_as_shipping:
+            return self
+        if self.billing_address is None:
+            raise ValueError("Billing address is required when it differs from shipping.")
+        return self
 
     @field_validator("delivery_latitude", mode="before")
     @classmethod

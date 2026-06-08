@@ -14,6 +14,7 @@ from app.core.enums import (
     PaymentStatus,
     ProductionBatchStatus,
     PurchasePlanningStatus,
+    ReviewItemSentiment,
 )
 
 
@@ -84,5 +85,11 @@ production_batch_status_enum = Enum(
 purchase_planning_status_enum = Enum(
     PurchasePlanningStatus,
     name="purchase_planning_status",
+    values_callable=_enum_values,
+)
+
+review_item_sentiment_enum = Enum(
+    ReviewItemSentiment,
+    name="review_item_sentiment",
     values_callable=_enum_values,
 )

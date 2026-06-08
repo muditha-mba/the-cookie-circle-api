@@ -7,6 +7,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.customer import Customer
+from app.models.order import Order
 
 
 class CustomerRepository:
@@ -34,6 +35,15 @@ class CustomerRepository:
     def get_by_user_id(self, user_id: uuid.UUID) -> Customer | None:
         stmt = select(Customer).where(Customer.user_id == user_id)
         return self.db.scalar(stmt)
+
+    def list_by_email(self, email: str) -> list[Customer]:
+        normalized = email.strip().lower()
+        stmt = select(Customer).where(func.lower(Customer.email) == normalized)
+        return list(self.db.scalars(stmt).all())
+
+    def count_orders(self, customer_id: uuid.UUID) -> int:
+        stmt = select(func.count()).select_from(Order).where(Order.customer_id == customer_id)
+        return int(self.db.scalar(stmt) or 0)
 
     def create(self, customer: Customer) -> Customer:
         self.db.add(customer)

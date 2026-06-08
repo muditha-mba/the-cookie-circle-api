@@ -22,6 +22,7 @@ from app.repositories.collection_repository import CollectionRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.delivery_area_repository import DeliveryAreaRepository
 from app.repositories.order_repository import OrderRepository
+from app.repositories.order_review_repository import OrderReviewRepository
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.order import (
@@ -42,6 +43,7 @@ from app.schemas.order import (
     OrderUpdate,
 )
 from app.schemas.order_profitability import TopProfitableOrderRow
+from app.schemas.order_review import OrderReviewSummaryEmbed
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.business_setting_service import BusinessSettingService
 from app.services.delivery_fee_service import resolve_delivery_fee
@@ -79,6 +81,7 @@ class OrderService:
         self.business_settings = BusinessSettingService(db)
         self.profitability = OrderProfitabilityService(db)
         self.selection_validator = CollectionSelectionValidator(db)
+        self.order_reviews = OrderReviewRepository(db)
 
     def create(self, payload: OrderCreate) -> OrderDetailResponse:
         customer = self.customers.get_by_id(payload.customer_id)
@@ -527,6 +530,10 @@ class OrderService:
     def _to_detail(self, order: Order) -> OrderDetailResponse:
         customer = order.customer
         delivery_area = order.delivery_area
+        review = self.order_reviews.get_by_order_id(order.id)
+        customer_review = (
+            OrderReviewSummaryEmbed(id=review.id, rating=review.rating) if review else None
+        )
         return OrderDetailResponse(
             id=order.id,
             order_number=order.order_number,
@@ -566,6 +573,12 @@ class OrderService:
             delivery_notes=order.delivery_notes,
             delivery_latitude=order.delivery_latitude,
             delivery_longitude=order.delivery_longitude,
+            billing_same_as_shipping=order.billing_same_as_shipping,
+            billing_address_line_1=order.billing_address_line_1,
+            billing_address_line_2=order.billing_address_line_2,
+            billing_city=order.billing_city,
+            billing_postal_code=order.billing_postal_code,
+            billing_landmark=order.billing_landmark,
             financial_performance=OrderFinancialPerformance(
                 snapshot=self.profitability.financial_snapshot_from_order(order),
                 is_historical_snapshot=True,
@@ -584,6 +597,7 @@ class OrderService:
                 delivered_at=order.delivered_at,
                 cancelled_at=order.cancelled_at,
             ),
+            customer_review=customer_review,
             created_at=order.created_at,
             updated_at=order.updated_at,
         )

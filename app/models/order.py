@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from app.models.order_collection_line import OrderCollectionLine
     from app.models.order_product_line import OrderProductLine
     from app.models.order_status_event import OrderStatusEvent
+    from app.models.order_review import OrderReview
 
 
 class Order(Base, TimestampMixin):
@@ -83,6 +84,17 @@ class Order(Base, TimestampMixin):
     delivery_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivery_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
     delivery_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    billing_same_as_shipping: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    billing_address_line_1: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    billing_address_line_2: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    billing_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    billing_postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    billing_landmark: Mapped[str | None] = mapped_column(String(255), nullable=True)
     products_subtotal_snapshot: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
@@ -123,4 +135,10 @@ class Order(Base, TimestampMixin):
         back_populates="order",
         cascade="all, delete-orphan",
         order_by="OrderStatusEvent.created_at",
+    )
+    order_review: Mapped["OrderReview | None"] = relationship(
+        "OrderReview",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        uselist=False,
     )

@@ -45,6 +45,10 @@ class VerifyEmailRequest(BaseModel):
     """Email verification request."""
 
     token: str = Field(min_length=1)
+    email: NormalizedEmail | None = Field(
+        default=None,
+        description="Required when using the development verification token",
+    )
 
 
 class ResendVerificationRequest(BaseModel):

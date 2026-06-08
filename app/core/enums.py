@@ -128,6 +128,13 @@ class PaymentStatus(str, enum.Enum):
     REFUNDED = "refunded"
 
 
+class ReviewItemSentiment(str, enum.Enum):
+    """Per-item thumbs feedback within an order review."""
+
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+
+
 class OrderStatus(str, enum.Enum):
     """Order fulfillment lifecycle."""
 

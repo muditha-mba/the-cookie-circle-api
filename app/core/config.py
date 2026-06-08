@@ -65,6 +65,14 @@ class Settings(BaseSettings):
         default=1,
         alias="PASSWORD_RESET_TOKEN_EXPIRE_HOURS",
     )
+    dev_email_verification_token: str | None = Field(
+        default="dev-verify",
+        alias="DEV_EMAIL_VERIFICATION_TOKEN",
+        description=(
+            "Development-only reusable verification token. "
+            "Set to empty string to disable."
+        ),
+    )
 
     frontend_client_url: str = Field(
         default="http://localhost:3000",

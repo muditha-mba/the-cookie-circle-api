@@ -488,11 +488,24 @@ PRODUCT_ITEM_PAYLOADS: tuple[dict[str, Any], ...] = (
 )
 
 DELIVERY_AREAS: tuple[dict[str, Any], ...] = (
-    {"name": "Kandy Central", "delivery_fee_override": Decimal("700"), "pickup_only": False},
+    {"name": "Kandy", "delivery_fee_override": Decimal("700"), "pickup_only": False},
+    {"name": "Asgiriya", "delivery_fee_override": Decimal("700"), "pickup_only": False},
+    {"name": "Mulgampola", "delivery_fee_override": Decimal("700"), "pickup_only": False},
+    {"name": "Bowalawatta", "delivery_fee_override": Decimal("700"), "pickup_only": False},
     {"name": "Peradeniya", "delivery_fee_override": Decimal("500"), "pickup_only": False},
+    {"name": "Aniwatta", "delivery_fee_override": Decimal("500"), "pickup_only": False},
+    {"name": "Kiribathkumbura", "delivery_fee_override": Decimal("500"), "pickup_only": False},
+    {"name": "Pilimathalawa", "delivery_fee_override": Decimal("500"), "pickup_only": False},
+    {"name": "Kadugannawa", "delivery_fee_override": Decimal("500"), "pickup_only": False},
+    {"name": "Gelioya", "delivery_fee_override": Decimal("500"), "pickup_only": False},
     {"name": "Katugastota", "delivery_fee_override": Decimal("650"), "pickup_only": False},
+    {"name": "Watapuluwa", "delivery_fee_override": Decimal("650"), "pickup_only": False},
+    {"name": "Ampitiya", "delivery_fee_override": Decimal("750"), "pickup_only": False},
+    {"name": "Tennekumbura", "delivery_fee_override": Decimal("750"), "pickup_only": False},
     {"name": "Kundasale", "delivery_fee_override": Decimal("750"), "pickup_only": False},
     {"name": "Akurana", "delivery_fee_override": Decimal("650"), "pickup_only": False},
+    {"name": "Danture", "delivery_fee_override": Decimal("650"), "pickup_only": False},
+    {"name": "Poththapitiya", "delivery_fee_override": Decimal("650"), "pickup_only": False},
     {"name": "Gampola", "delivery_fee_override": Decimal("800"), "pickup_only": False},
     {"name": "Pickup Only", "delivery_fee_override": Decimal("0"), "pickup_only": True},
 )
@@ -1162,7 +1175,7 @@ def create_orders(
                 rng,
                 [
                     ("Peradeniya", 22),
-                    ("Kandy Central", 20),
+                    ("Kandy", 20),
                     ("Katugastota", 14),
                     ("Kundasale", 12),
                     ("Akurana", 12),
@@ -1309,7 +1322,7 @@ def create_orders(
         created = order_service.create(
             OrderCreate(
                 customer_id=customer.id,
-                delivery_area_id=delivery_area_ids[weighted_choice(rng, [("Peradeniya", 20), ("Kandy Central", 20), ("Katugastota", 15), ("Kundasale", 10), ("Akurana", 10), ("Gampola", 10), ("Pickup Only", 15)])],
+                delivery_area_id=delivery_area_ids[weighted_choice(rng, [("Peradeniya", 20), ("Kandy", 20), ("Katugastota", 15), ("Kundasale", 10), ("Akurana", 10), ("Gampola", 10), ("Pickup Only", 15)])],
                 source=source,
                 payment_method=method,
                 payment_status=pay_status,

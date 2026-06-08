@@ -12,9 +12,11 @@ from app.models.enum_columns import customer_source_enum, marketing_source_enum
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.customer_address import CustomerAddress
     from app.models.customer_communication import CustomerCommunication
     from app.models.customer_note import CustomerNote
     from app.models.order import Order
+    from app.models.order_review import OrderReview
     from app.models.user import User
 
 
@@ -39,6 +41,7 @@ class Customer(Base, TimestampMixin):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    phone_secondary: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address_line_1: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address_line_2: Mapped[str | None] = mapped_column(String(255), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -69,4 +72,16 @@ class Customer(Base, TimestampMixin):
         back_populates="customer",
         cascade="all, delete-orphan",
         order_by="CustomerCommunication.created_at.desc()",
+    )
+    saved_addresses: Mapped[list["CustomerAddress"]] = relationship(
+        "CustomerAddress",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+        order_by="CustomerAddress.is_default.desc(), CustomerAddress.created_at.desc()",
+    )
+    order_reviews: Mapped[list["OrderReview"]] = relationship(
+        "OrderReview",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+        order_by="OrderReview.created_at.desc()",
     )

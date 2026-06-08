@@ -10,6 +10,7 @@ from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, P
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.order_profitability import OrderFinancialSnapshot
+from app.schemas.order_review import OrderReviewSummaryEmbed
 
 
 class OrderProductLineInput(BaseModel):
@@ -25,6 +26,17 @@ class OrderCollectionLineInput(BaseModel):
     collection_id: UUID
     quantity: Decimal = Field(gt=0)
     selections: list[CollectionCookieSelectionInput] | None = None
+
+
+class OrderBillingFields(BaseModel):
+    """Billing address snapshot on an order."""
+
+    billing_same_as_shipping: bool = True
+    billing_address_line_1: str | None = Field(default=None, max_length=255)
+    billing_address_line_2: str | None = Field(default=None, max_length=255)
+    billing_city: str | None = Field(default=None, max_length=100)
+    billing_postal_code: str | None = Field(default=None, max_length=20)
+    billing_landmark: str | None = Field(default=None, max_length=255)
 
 
 class OrderDeliveryFields(BaseModel):
@@ -206,7 +218,7 @@ class OrderSummaryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class OrderDetailResponse(OrderDeliveryFields):
+class OrderDetailResponse(OrderDeliveryFields, OrderBillingFields):
     """Full order detail."""
 
     id: UUID
@@ -228,6 +240,7 @@ class OrderDetailResponse(OrderDeliveryFields):
     collection_lines: list[OrderCollectionLineResponse]
     status_timeline: list[OrderStatusEventResponse]
     lifecycle: OrderLifecycleTimestamps
+    customer_review: OrderReviewSummaryEmbed | None = None
     created_at: datetime
     updated_at: datetime
 
