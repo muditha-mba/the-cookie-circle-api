@@ -21,6 +21,7 @@ from app.schemas.client_account import (
     ClientAccountOrderSummary,
 )
 from app.schemas.pagination import PaginatedResponse
+from app.utils.search import ilike_contains
 
 
 class ClientOrderHistoryService:
@@ -57,8 +58,8 @@ class ClientOrderHistoryService:
         count_stmt = select(func.count()).select_from(Order).where(Order.customer_id == customer.id)
 
         if search:
-            pattern = f"%{search.strip()}%"
-            clause = or_(Order.order_number.ilike(pattern))
+            pattern, escape = ilike_contains(search)
+            clause = or_(Order.order_number.ilike(pattern, escape=escape))
             stmt = stmt.where(clause)
             count_stmt = count_stmt.where(clause)
         if status:

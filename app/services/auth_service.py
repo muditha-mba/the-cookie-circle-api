@@ -37,6 +37,7 @@ from app.schemas.auth import (
 )
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.email import get_email_service
+from app.services.security_audit import log_security_event
 from app.utils.tokens import generate_secure_token, hash_token
 
 
@@ -130,9 +131,14 @@ class AuthService:
         self._issue_verification_token(user)
         self.db.commit()
 
-    def login(self, payload: LoginRequest) -> TokenResponse:
+    def login(self, payload: LoginRequest, *, ip_address: str | None = None) -> TokenResponse:
         user = self.users.get_by_email(payload.email)
         if not user or not verify_password(payload.password, user.password_hash):
+            log_security_event(
+                "login_failed",
+                ip_address=ip_address,
+                metadata={"email": str(payload.email)},
+            )
             raise AuthError("Invalid email or password")
 
         if not user.is_active:
@@ -167,6 +173,11 @@ class AuthService:
                 "Refresh token reuse detected for user_id=%s",
                 token_record.user_id,
             )
+            log_security_event(
+                "refresh_token_reuse_detected",
+                actor_id=token_record.user_id,
+                metadata={"token_id": str(token_record.id)},
+            )
             self.refresh_tokens.revoke_all_for_user(token_record.user_id)
             self.db.commit()
             raise AuthError("Invalid or expired refresh token")
@@ -194,6 +205,16 @@ class AuthService:
         if token_record:
             self.refresh_tokens.revoke(token_record)
             self.db.commit()
+
+    def logout_all_sessions(self, user: User) -> None:
+        """Revoke all refresh tokens and invalidate outstanding access tokens."""
+        self._invalidate_user_sessions(user)
+        self.db.commit()
+        log_security_event(
+            "logout_all_sessions",
+            actor_id=user.id,
+            actor_role=user.role.value,
+        )
 
     def forgot_password(self, payload: ForgotPasswordRequest) -> None:
         user = self.users.get_by_email(payload.email)
@@ -236,19 +257,29 @@ class AuthService:
         user = token_record.user
         self.password_tokens.mark_used(token_record)
         self.users.update_password(user, hash_password(payload.password))
-        self.refresh_tokens.revoke_all_for_user(user.id)
+        self._invalidate_user_sessions(user)
         self.db.commit()
 
-    def get_current_user(self, user_id: str) -> User:
+    def get_current_user(self, user_id: str, *, token_version: int) -> User:
         from uuid import UUID
 
         user = self.users.get_by_id(UUID(user_id))
         if not user or not user.is_active:
             raise AuthError("Invalid or inactive user")
+        if user.token_version != token_version:
+            raise AuthError("Invalid or expired access token")
         return user
 
+    def _invalidate_user_sessions(self, user: User) -> None:
+        self.refresh_tokens.revoke_all_for_user(user.id)
+        self.users.bump_token_version(user)
+
     def _issue_tokens(self, user: User) -> dict[str, str]:
-        access_token = create_access_token(subject=user.id, role=user.role.value)
+        access_token = create_access_token(
+            subject=user.id,
+            role=user.role.value,
+            token_version=user.token_version,
+        )
         raw_refresh = generate_secure_token()
         expires_at = datetime.now(UTC) + timedelta(
             days=settings.refresh_token_expire_days,

@@ -5,7 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.admin import get_current_admin_user, get_utility_charge_service
+from app.dependencies.admin import get_utility_charge_service
+from app.dependencies.permissions import require_super_admin
 from app.schemas.charge import (
     UtilityChargeCreate,
     UtilityChargeResponse,
@@ -17,7 +18,7 @@ from app.services.utility_charge_service import UtilityChargeService
 router = APIRouter(
     prefix="/utility-charges",
     tags=["Utility Charges"],
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(require_super_admin)],
 )
 
 

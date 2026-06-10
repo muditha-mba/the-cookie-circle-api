@@ -8,6 +8,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.enums import ChargeApplicability, ChargeType
+from app.utils.search import ilike_contains
 
 T = TypeVar("T")
 
@@ -90,10 +91,10 @@ class ChargeRepository(Generic[T]):
         count_stmt = select(func.count()).select_from(self.model)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                self.model.name.ilike(pattern),
-                self.model.description.ilike(pattern),
+                self.model.name.ilike(pattern, escape=escape),
+                self.model.description.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

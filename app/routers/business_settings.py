@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from app.dependencies.admin import get_business_setting_service, get_current_admin_user
+from app.dependencies.permissions import require_super_admin
 from app.schemas.business_settings import (
     BusinessSettingsResponse,
     BusinessSettingsUpdate,
@@ -27,6 +28,7 @@ router = APIRouter(
 
 @router.get("", response_model=BusinessSettingsResponse)
 def get_business_settings(
+    _: Annotated[object, Depends(require_super_admin)],
     service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
 ) -> BusinessSettingsResponse:
     """Get operational business settings."""
@@ -35,6 +37,7 @@ def get_business_settings(
 
 @router.patch("", response_model=BusinessSettingsResponse)
 def update_business_settings(
+    _: Annotated[object, Depends(require_super_admin)],
     payload: BusinessSettingsUpdate,
     service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
 ) -> BusinessSettingsResponse:
@@ -44,6 +47,7 @@ def update_business_settings(
 
 @router.get("/social-media", response_model=SocialMediaSettingsResponse)
 def get_social_media_settings(
+    _: Annotated[object, Depends(require_super_admin)],
     service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
 ) -> SocialMediaSettingsResponse:
     """Get social media link settings."""
@@ -52,6 +56,7 @@ def get_social_media_settings(
 
 @router.patch("/social-media", response_model=SocialMediaSettingsResponse)
 def update_social_media_settings(
+    _: Annotated[object, Depends(require_super_admin)],
     payload: SocialMediaSettingsUpdate,
     service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
 ) -> SocialMediaSettingsResponse:
@@ -61,6 +66,7 @@ def update_social_media_settings(
 
 @router.get("/shared-memories", response_model=SharedMemoriesSectionSettingsResponse)
 def get_shared_memories_section_settings(
+    _: Annotated[object, Depends(require_super_admin)],
     service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
 ) -> SharedMemoriesSectionSettingsResponse:
     """Get shared memories section visibility settings."""
@@ -69,6 +75,7 @@ def get_shared_memories_section_settings(
 
 @router.patch("/shared-memories", response_model=SharedMemoriesSectionSettingsResponse)
 def update_shared_memories_section_settings(
+    _: Annotated[object, Depends(require_super_admin)],
     payload: SharedMemoriesSectionSettingsUpdate,
     service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
 ) -> SharedMemoriesSectionSettingsResponse:

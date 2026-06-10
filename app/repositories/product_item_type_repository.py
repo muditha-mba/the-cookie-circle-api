@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.product_item import ProductItem
 from app.models.product_item_type import ProductItemType
+from app.utils.search import ilike_contains
 
 
 class ProductItemTypeRepository:
@@ -80,10 +81,10 @@ class ProductItemTypeRepository:
         count_stmt = select(func.count()).select_from(ProductItemType)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                ProductItemType.name.ilike(pattern),
-                ProductItemType.description.ilike(pattern),
+                ProductItemType.name.ilike(pattern, escape=escape),
+                ProductItemType.description.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

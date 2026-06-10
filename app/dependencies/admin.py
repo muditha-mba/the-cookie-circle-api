@@ -9,6 +9,7 @@ from app.core.enums import UserRole
 from app.core.exceptions import ForbiddenError
 from app.database.session import get_db
 from app.dependencies.auth import get_current_user
+from app.dependencies.security import enforce_admin_ip_allowlist
 from app.models.user import User
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_service import CollectionService
@@ -49,6 +50,7 @@ from app.services.utility_charge_service import UtilityChargeService
 
 
 def get_current_admin_user(
+    _: Annotated[None, Depends(enforce_admin_ip_allowlist)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """Require an authenticated admin user."""

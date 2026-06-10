@@ -27,6 +27,7 @@ def create_access_token(
     *,
     subject: UUID,
     role: str,
+    token_version: int,
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a signed JWT access token."""
@@ -38,6 +39,7 @@ def create_access_token(
         "sub": str(subject),
         "role": role,
         "type": "access",
+        "tv": token_version,
         "exp": expire,
         "iat": datetime.now(UTC),
     }

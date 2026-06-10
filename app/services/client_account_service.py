@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.enums import OrderStatus, UserRole
 from app.core.exceptions import AuthError, ValidationError
 from app.core.security import hash_password, verify_password
+from app.repositories.refresh_token_repository import RefreshTokenRepository
+from app.services.security_audit import log_security_event
 from app.models.customer import Customer
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
@@ -34,6 +36,7 @@ class ClientAccountService:
         self.db = db
         self.customers = CustomerRepository(db)
         self.users = UserRepository(db)
+        self.refresh_tokens = RefreshTokenRepository(db)
         self.orders = OrderRepository(db)
         self.insights = CustomerInsightsRepository(db)
         self.order_history = ClientOrderHistoryService(db)
@@ -77,7 +80,14 @@ class ClientAccountService:
         if not verify_password(payload.current_password, user.password_hash):
             raise ValidationError("Current password is incorrect")
         user.password_hash = hash_password(payload.new_password)
+        self.refresh_tokens.revoke_all_for_user(user.id)
+        self.users.bump_token_version(user)
         self.db.commit()
+        log_security_event(
+            "password_changed",
+            actor_id=user.id,
+            actor_role=user.role.value,
+        )
 
     def get_dashboard(self, customer: Customer, user: User) -> ClientAccountDashboardResponse:
         metrics = self.insights.get_metrics_for_customer(customer)

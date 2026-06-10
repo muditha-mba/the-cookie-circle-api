@@ -161,4 +161,4 @@ class ProductDetailResponse(ProductSummaryResponse):
     utility_charges: list[AttachedChargeSummary]
     labour_charges: list[AttachedChargeSummary]
     tax_charges: list[AttachedChargeSummary]
-    cost_breakdown: ProductCostBreakdown
+    cost_breakdown: ProductCostBreakdown | None = None

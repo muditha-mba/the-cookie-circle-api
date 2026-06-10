@@ -579,6 +579,8 @@ class OrderService:
             billing_city=order.billing_city,
             billing_postal_code=order.billing_postal_code,
             billing_landmark=order.billing_landmark,
+            delivery_fee_snapshot=order.delivery_fee_snapshot,
+            total_revenue_snapshot=order.total_revenue_snapshot,
             financial_performance=OrderFinancialPerformance(
                 snapshot=self.profitability.financial_snapshot_from_order(order),
                 is_historical_snapshot=True,

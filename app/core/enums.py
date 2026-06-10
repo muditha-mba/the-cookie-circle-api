@@ -10,6 +10,13 @@ class UserRole(str, enum.Enum):
     CUSTOMER = "CUSTOMER"
 
 
+class AdminRole(str, enum.Enum):
+    """Admin panel access tier — only meaningful when role is ADMIN."""
+
+    SUPER_ADMIN = "super_admin"
+    CLERK_ADMIN = "clerk_admin"
+
+
 class AppContext(str, enum.Enum):
     """Application context for login role enforcement."""
 

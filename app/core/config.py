@@ -89,6 +89,45 @@ class Settings(BaseSettings):
         description="E.164 digits only, no plus sign, for wa.me links",
     )
 
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_trust_proxy: bool = Field(default=False, alias="RATE_LIMIT_TRUST_PROXY")
+
+    trusted_hosts: str = Field(
+        default="localhost,127.0.0.1",
+        alias="TRUSTED_HOSTS",
+        description="Comma-separated hostnames allowed by TrustedHostMiddleware",
+    )
+
+    admin_allowed_ips: str = Field(
+        default="",
+        alias="ADMIN_ALLOWED_IPS",
+        description="Optional comma-separated admin API IP allowlist",
+    )
+
+    email_provider: Literal["console", "smtp"] = Field(
+        default="console",
+        alias="EMAIL_PROVIDER",
+    )
+    smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str | None = Field(default=None, alias="SMTP_USERNAME")
+    smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
+    smtp_from_email: str | None = Field(default=None, alias="SMTP_FROM_EMAIL")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+
+    turnstile_secret_key: str | None = Field(default=None, alias="TURNSTILE_SECRET_KEY")
+    captcha_required: bool = Field(default=False, alias="CAPTCHA_REQUIRED")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def trusted_host_list(self) -> list[str]:
+        return [host.strip() for host in self.trusted_hosts.split(",") if host.strip()]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def admin_allowed_ip_list(self) -> list[str]:
+        return [ip.strip() for ip in self.admin_allowed_ips.split(",") if ip.strip()]
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origin_list(self) -> list[str]:
@@ -125,6 +164,22 @@ class Settings(BaseSettings):
                     "JWT_SECRET_KEY must be a secure random value of at least "
                     "32 characters in staging and production environments",
                 )
+
+        if self.is_production:
+            if self.debug:
+                raise ValueError("DEBUG must be false when APP_ENV=production")
+            if self.email_provider != "smtp":
+                raise ValueError("EMAIL_PROVIDER must be smtp when APP_ENV=production")
+            if not self.smtp_host or not self.smtp_from_email:
+                raise ValueError(
+                    "SMTP_HOST and SMTP_FROM_EMAIL are required when APP_ENV=production",
+                )
+
+        if self.captcha_required and not (self.turnstile_secret_key or "").strip():
+            raise ValueError(
+                "TURNSTILE_SECRET_KEY is required when CAPTCHA_REQUIRED=true",
+            )
+
         return self
 
 

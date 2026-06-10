@@ -39,7 +39,11 @@ def get_current_user(
     if not subject:
         raise AuthError("Invalid token payload")
 
-    return auth_service.get_current_user(subject)
+    token_version = payload.get("tv")
+    if token_version is None:
+        raise AuthError("Invalid or expired access token")
+
+    return auth_service.get_current_user(subject, token_version=int(token_version))
 
 
 def get_current_user_response(

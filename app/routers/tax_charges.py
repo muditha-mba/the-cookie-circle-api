@@ -5,7 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.admin import get_current_admin_user, get_tax_charge_service
+from app.dependencies.admin import get_tax_charge_service
+from app.dependencies.permissions import require_super_admin
 from app.schemas.charge import (
     TaxChargeCreate,
     TaxChargeResponse,
@@ -17,7 +18,7 @@ from app.services.tax_charge_service import TaxChargeService
 router = APIRouter(
     prefix="/tax-charges",
     tags=["Tax Charges"],
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(require_super_admin)],
 )
 
 

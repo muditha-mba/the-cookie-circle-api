@@ -235,7 +235,9 @@ class OrderDetailResponse(OrderDeliveryFields, OrderBillingFields):
     internal_notes: str | None
     requested_delivery_date: date
     scheduled_delivery_date: date
-    financial_performance: OrderFinancialPerformance
+    delivery_fee_snapshot: Decimal
+    total_revenue_snapshot: Decimal
+    financial_performance: OrderFinancialPerformance | None = None
     product_lines: list[OrderProductLineResponse]
     collection_lines: list[OrderCollectionLineResponse]
     status_timeline: list[OrderStatusEventResponse]

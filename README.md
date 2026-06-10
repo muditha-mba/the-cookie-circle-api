@@ -64,3 +64,45 @@ app/
 ├── utils/          # Shared utilities
 └── main.py         # Application entry point
 ```
+
+## Security
+
+### Admin bootstrap
+
+Create the first admin user with the CLI — never expose admin registration on a public route:
+
+```bash
+uv run python scripts/create_admin.py
+```
+
+### Production checklist
+
+Before deploying with `APP_ENV=production`:
+
+1. Set a strong `JWT_SECRET_KEY` (32+ random characters).
+2. Set `DEBUG=false`.
+3. Configure `EMAIL_PROVIDER=smtp` with valid SMTP credentials.
+4. Set `TRUSTED_HOSTS` to your API hostname.
+5. Restrict `CORS_ORIGINS` to the client and admin domains.
+6. Terminate HTTPS at your reverse proxy and enable `RATE_LIMIT_TRUST_PROXY=true` when the proxy sets `X-Forwarded-For`.
+7. Optionally restrict admin API access with `ADMIN_ALLOWED_IPS`.
+8. Optionally enable Turnstile with `TURNSTILE_SECRET_KEY` and `CAPTCHA_REQUIRED=true`.
+9. Run database migrations, including `027_user_token_version`.
+10. Store secrets in your host environment or secrets manager — never commit `.env`.
+
+### Session invalidation
+
+- `POST /api/v1/auth/logout` revokes the current refresh token.
+- `POST /api/v1/auth/logout-all` revokes all refresh tokens and invalidates outstanding access tokens immediately.
+- Password reset and password change also invalidate existing sessions.
+
+### Security audit logs
+
+Structured security events are written to the `security.audit` logger (JSON lines). Configure your log collector to monitor:
+
+- `login_failed`
+- `rate_limit_exceeded`
+- `refresh_token_reuse_detected`
+- `admin_mutation`
+- `logout_all_sessions`
+- `password_changed`

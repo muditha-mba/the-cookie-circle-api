@@ -12,6 +12,7 @@ from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.models.order_product_line import OrderProductLine
 from app.models.order_status_event import OrderStatusEvent
+from app.utils.search import ilike_contains
 
 
 class OrderRepository:
@@ -73,12 +74,12 @@ class OrderRepository:
         count_stmt = select(func.count()).select_from(Order)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                Order.order_number.ilike(pattern),
-                Order.customer_notes.ilike(pattern),
-                Order.internal_notes.ilike(pattern),
-                Order.delivery_contact_name.ilike(pattern),
+                Order.order_number.ilike(pattern, escape=escape),
+                Order.customer_notes.ilike(pattern, escape=escape),
+                Order.internal_notes.ilike(pattern, escape=escape),
+                Order.delivery_contact_name.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

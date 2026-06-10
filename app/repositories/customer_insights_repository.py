@@ -19,6 +19,7 @@ from app.services.customer_segmentation import (
     CustomerOrderMetrics,
     CustomerSegmentationConfig,
 )
+from app.utils.search import ilike_contains
 
 MONEY_PRECISION = Decimal("0.01")
 
@@ -204,13 +205,13 @@ class CustomerInsightsRepository:
 
         filters = []
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filters.append(
                 or_(
-                    Customer.first_name.ilike(pattern),
-                    Customer.last_name.ilike(pattern),
-                    Customer.email.ilike(pattern),
-                    Customer.phone.ilike(pattern),
+                    Customer.first_name.ilike(pattern, escape=escape),
+                    Customer.last_name.ilike(pattern, escape=escape),
+                    Customer.email.ilike(pattern, escape=escape),
+                    Customer.phone.ilike(pattern, escape=escape),
                 ),
             )
         if marketing_source is not None:

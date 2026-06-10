@@ -20,6 +20,7 @@ from app.dependencies.admin import (
     get_analytics_revenue_service,
     get_current_admin_user,
 )
+from app.dependencies.permissions import require_super_admin
 from app.schemas.analytics import (
     AnalyticsOverviewResponse,
     AnalyticsQueryParams,
@@ -87,7 +88,7 @@ from app.services.analytics.analytics_revenue_service import AnalyticsRevenueSer
 router = APIRouter(
     prefix="/analytics",
     tags=["Analytics"],
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(get_current_admin_user), Depends(require_super_admin)],
 )
 
 

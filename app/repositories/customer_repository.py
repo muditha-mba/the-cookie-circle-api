@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.customer import Customer
 from app.models.order import Order
+from app.utils.search import ilike_contains
 
 
 class CustomerRepository:
@@ -66,12 +67,12 @@ class CustomerRepository:
         count_stmt = select(func.count()).select_from(Customer)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                Customer.first_name.ilike(pattern),
-                Customer.last_name.ilike(pattern),
-                Customer.email.ilike(pattern),
-                Customer.phone.ilike(pattern),
+                Customer.first_name.ilike(pattern, escape=escape),
+                Customer.last_name.ilike(pattern, escape=escape),
+                Customer.email.ilike(pattern, escape=escape),
+                Customer.phone.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.dependencies.client import (
     get_customer_catalog_service,
@@ -35,6 +35,8 @@ from app.database.session import get_db
 from app.repositories.delivery_area_repository import DeliveryAreaRepository
 from app.services.business_setting_service import BusinessSettingService
 from app.services.delivery_fee_service import resolve_delivery_fee
+from app.utils.captcha import verify_captcha_token
+from app.utils.client_ip import get_client_ip
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/client", tags=["Client Ordering"])
@@ -138,9 +140,11 @@ def preview_client_order(
 )
 def checkout_client_order(
     payload: ClientCheckoutRequest,
+    request: Request,
     service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
 ) -> ClientCheckoutResponse:
     """Place a website order and receive a WhatsApp handoff URL."""
+    verify_captcha_token(payload.captcha_token, remote_ip=get_client_ip(request))
     return service.checkout(payload)
 
 

@@ -207,6 +207,7 @@ class ClientCheckoutRequest(ClientOrderPreviewRequest):
     payment_method: PaymentMethod = PaymentMethod.CASH_ON_DELIVERY
     create_account: bool = False
     account_password: str | None = Field(default=None, min_length=8, max_length=128)
+    captcha_token: str | None = Field(default=None, max_length=4096)
 
     @model_validator(mode="after")
     def account_password_required(self) -> "ClientCheckoutRequest":

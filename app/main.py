@@ -4,9 +4,13 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
+from app.middleware.admin_audit import setup_admin_audit
 from app.middleware.cors import setup_cors
+from app.middleware.rate_limit import setup_rate_limit
+from app.middleware.security_headers import setup_security_headers
 from app.routers.analytics import router as analytics_router
 from app.routers.auth import router as auth_router
 from app.routers.business_settings import router as business_settings_router
@@ -44,13 +48,32 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    docs_kwargs = {}
+    if settings.is_production:
+        docs_kwargs = {
+            "docs_url": None,
+            "redoc_url": None,
+            "openapi_url": None,
+        }
+
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
+        **docs_kwargs,
     )
 
+    if settings.is_staging or settings.is_production:
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=settings.trusted_host_list,
+        )
+
+    setup_security_headers(app)
+    setup_admin_audit(app)
+    setup_rate_limit(app)
     setup_cors(app)
+
     app.include_router(health_router)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(client_ordering_router, prefix=settings.api_v1_prefix)
