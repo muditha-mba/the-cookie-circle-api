@@ -20,6 +20,8 @@ from app.models.product_category import ProductCategory
 from app.models.collection_item_line import CollectionItemLine
 from app.models.collection_product_line import CollectionProductLine
 from app.models.email_verification_token import EmailVerificationToken
+from app.models.faq import Faq
+from app.models.faq_category import FaqCategory
 from app.models.labour_charge import LabourCharge
 from app.models.delivery_area import DeliveryArea
 from app.models.order import Order
@@ -59,6 +61,8 @@ __all__ = [
     "CollectionProductLine",
     "ProductCategory",
     "EmailVerificationToken",
+    "Faq",
+    "FaqCategory",
     "LabourCharge",
     "DeliveryArea",
     "Order",

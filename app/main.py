@@ -12,6 +12,9 @@ from app.routers.auth import router as auth_router
 from app.routers.business_settings import router as business_settings_router
 from app.routers.client_account import router as client_account_router
 from app.routers.client_ordering import router as client_ordering_router
+from app.routers.client_site import router as client_site_router
+from app.routers.faq_categories import router as faq_categories_router
+from app.routers.faqs import router as faqs_router
 from app.routers.reviews import router as reviews_router
 from app.routers.collections import router as collections_router
 from app.routers.collection_packages import router as collection_packages_router
@@ -50,7 +53,10 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(client_ordering_router, prefix=settings.api_v1_prefix)
+    app.include_router(client_site_router, prefix=settings.api_v1_prefix)
     app.include_router(client_account_router, prefix=settings.api_v1_prefix)
+    app.include_router(faqs_router, prefix=settings.api_v1_prefix)
+    app.include_router(faq_categories_router, prefix=settings.api_v1_prefix)
     app.include_router(reviews_router, prefix=settings.api_v1_prefix)
     app.include_router(product_item_types_router, prefix=settings.api_v1_prefix)
     app.include_router(product_items_router, prefix=settings.api_v1_prefix)

@@ -11,6 +11,7 @@ from app.schemas.business_settings import (
     BusinessSettingsUpdate,
     SuggestedDeliveryDateResponse,
 )
+from app.schemas.social_media import SocialMediaSettingsResponse, SocialMediaSettingsUpdate
 from app.services.business_setting_service import BusinessSettingService
 
 router = APIRouter(
@@ -35,6 +36,23 @@ def update_business_settings(
 ) -> BusinessSettingsResponse:
     """Update operational business settings."""
     return service.update_settings(payload)
+
+
+@router.get("/social-media", response_model=SocialMediaSettingsResponse)
+def get_social_media_settings(
+    service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
+) -> SocialMediaSettingsResponse:
+    """Get social media link settings."""
+    return service.get_social_media_settings()
+
+
+@router.patch("/social-media", response_model=SocialMediaSettingsResponse)
+def update_social_media_settings(
+    payload: SocialMediaSettingsUpdate,
+    service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
+) -> SocialMediaSettingsResponse:
+    """Update social media link settings."""
+    return service.update_social_media_settings(payload)
 
 
 @router.get("/suggested-delivery-date", response_model=SuggestedDeliveryDateResponse)
