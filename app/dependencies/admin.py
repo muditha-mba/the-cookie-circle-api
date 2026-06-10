@@ -46,6 +46,7 @@ from app.services.product_item_service import ProductItemService
 from app.services.product_item_type_service import ProductItemTypeService
 from app.services.product_service import ProductService
 from app.services.tax_charge_service import TaxChargeService
+from app.services.activity_log_service import ActivityLogService
 from app.services.utility_charge_service import UtilityChargeService
 
 
@@ -273,3 +274,9 @@ def get_shared_memory_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> SharedMemoryService:
     return SharedMemoryService(db)
+
+
+def get_activity_log_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ActivityLogService:
+    return ActivityLogService(db)

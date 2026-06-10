@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from app.core.config import settings
-from app.core.enums import AppContext, UserRole
+from app.core.enums import ActivityAction, AppContext, UserRole
 from app.core.exceptions import AuthError, ConflictError, ForbiddenError, ValidationError
 from app.core.security import (
     create_access_token,
@@ -37,7 +37,9 @@ from app.schemas.auth import (
 )
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.email import get_email_service
+from app.services.activity_log_service import record_admin_auth_activity
 from app.services.security_audit import log_security_event
+from app.utils.client_context import ClientContext
 from app.utils.tokens import generate_secure_token, hash_token
 
 
@@ -131,14 +133,44 @@ class AuthService:
         self._issue_verification_token(user)
         self.db.commit()
 
-    def login(self, payload: LoginRequest, *, ip_address: str | None = None) -> TokenResponse:
+    def login(
+        self,
+        payload: LoginRequest,
+        *,
+        ip_address: str | None = None,
+        client: ClientContext | None = None,
+    ) -> TokenResponse:
+        resolved_client = client
+        if resolved_client is None:
+            from app.core.enums import ClientDeviceType
+
+            resolved_client = ClientContext(
+                ip_address=ip_address,
+                user_agent=None,
+                browser_name=None,
+                browser_version=None,
+                os_name=None,
+                os_version=None,
+                device_type=ClientDeviceType.UNKNOWN,
+            )
+
         user = self.users.get_by_email(payload.email)
         if not user or not verify_password(payload.password, user.password_hash):
             log_security_event(
                 "login_failed",
-                ip_address=ip_address,
-                metadata={"email": str(payload.email)},
+                ip_address=resolved_client.ip_address,
+                metadata={"email": str(payload.email), "app": payload.app.value},
             )
+            if payload.app == AppContext.ADMIN:
+                record_admin_auth_activity(
+                    action=ActivityAction.LOGIN_FAILED,
+                    user=None,
+                    email=str(payload.email),
+                    client=resolved_client,
+                    status_code=401,
+                    success=False,
+                    metadata={"app": payload.app.value},
+                )
             raise AuthError("Invalid email or password")
 
         if not user.is_active:
@@ -157,6 +189,16 @@ class AuthService:
         tokens = self._issue_tokens(user)
         self.db.commit()
         self.db.refresh(user)
+
+        if payload.app == AppContext.ADMIN and user.role == UserRole.ADMIN:
+            record_admin_auth_activity(
+                action=ActivityAction.LOGIN,
+                user=user,
+                email=user.email,
+                client=resolved_client,
+                metadata={"admin_role": user.admin_role.value if user.admin_role else None},
+            )
+
         return TokenResponse(
             **tokens,
             user=UserResponse.model_validate(user),
@@ -198,15 +240,23 @@ class AuthService:
             user=UserResponse.model_validate(user),
         )
 
-    def logout(self, payload: LogoutRequest) -> None:
+    def logout(self, payload: LogoutRequest, *, client: ClientContext | None = None) -> None:
         token_record = self.refresh_tokens.get_valid_by_hash(
             hash_token(payload.refresh_token),
         )
         if token_record:
+            user = token_record.user
             self.refresh_tokens.revoke(token_record)
             self.db.commit()
+            if user.role == UserRole.ADMIN and client is not None:
+                record_admin_auth_activity(
+                    action=ActivityAction.LOGOUT,
+                    user=user,
+                    email=user.email,
+                    client=client,
+                )
 
-    def logout_all_sessions(self, user: User) -> None:
+    def logout_all_sessions(self, user: User, *, client: ClientContext | None = None) -> None:
         """Revoke all refresh tokens and invalidate outstanding access tokens."""
         self._invalidate_user_sessions(user)
         self.db.commit()
@@ -215,6 +265,13 @@ class AuthService:
             actor_id=user.id,
             actor_role=user.role.value,
         )
+        if user.role == UserRole.ADMIN and client is not None:
+            record_admin_auth_activity(
+                action=ActivityAction.LOGOUT_ALL,
+                user=user,
+                email=user.email,
+                client=client,
+            )
 
     def forgot_password(self, payload: ForgotPasswordRequest) -> None:
         user = self.users.get_by_email(payload.email)

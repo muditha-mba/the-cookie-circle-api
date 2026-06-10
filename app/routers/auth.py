@@ -25,6 +25,7 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import AuthService
 from app.utils.captcha import verify_captcha_token
+from app.utils.client_context import client_context_from_request
 from app.utils.client_ip import get_client_ip
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -75,7 +76,11 @@ def login(
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> TokenResponse:
     """Authenticate and receive access and refresh tokens."""
-    return auth_service.login(payload, ip_address=get_client_ip(request))
+    return auth_service.login(
+        payload,
+        ip_address=get_client_ip(request),
+        client=client_context_from_request(request),
+    )
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -90,20 +95,25 @@ def refresh_token(
 @router.post("/logout", response_model=MessageResponse)
 def logout(
     payload: LogoutRequest,
+    request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> MessageResponse:
     """Revoke a refresh token."""
-    auth_service.logout(payload)
+    auth_service.logout(payload, client=client_context_from_request(request))
     return MessageResponse(message="Logged out successfully")
 
 
 @router.post("/logout-all", response_model=MessageResponse)
 def logout_all_sessions(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> MessageResponse:
     """Revoke all refresh tokens and invalidate existing access tokens."""
-    auth_service.logout_all_sessions(current_user)
+    auth_service.logout_all_sessions(
+        current_user,
+        client=client_context_from_request(request),
+    )
     return MessageResponse(message="Logged out from all devices successfully")
 
 

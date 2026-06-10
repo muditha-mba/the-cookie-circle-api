@@ -1,5 +1,6 @@
 """SQLAlchemy models."""
 
+from app.models.admin_activity_log import AdminActivityLog
 from app.models.base import TimestampMixin
 from app.models.business_setting import BusinessSetting
 from app.models.collection import Collection
@@ -49,6 +50,7 @@ from app.models.user import User
 from app.models.utility_charge import UtilityCharge
 
 __all__ = [
+    "AdminActivityLog",
     "BusinessSetting",
     "Collection",
     "CollectionPackage",

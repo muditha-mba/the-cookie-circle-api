@@ -3,7 +3,10 @@
 from sqlalchemy import Enum
 
 from app.core.enums import (
+    ActivityAction,
+    ActivityResourceType,
     AdminRole,
+    ClientDeviceType,
     CollectionSelectionMode,
     CommunicationType,
     CustomerSource,
@@ -26,6 +29,24 @@ def _enum_values(enum_cls: type) -> list[str]:
 admin_role_enum = Enum(
     AdminRole,
     name="admin_role",
+    values_callable=_enum_values,
+)
+
+activity_action_enum = Enum(
+    ActivityAction,
+    name="activity_action",
+    values_callable=_enum_values,
+)
+
+activity_resource_type_enum = Enum(
+    ActivityResourceType,
+    name="activity_resource_type",
+    values_callable=_enum_values,
+)
+
+client_device_type_enum = Enum(
+    ClientDeviceType,
+    name="client_device_type",
     values_callable=_enum_values,
 )
 
