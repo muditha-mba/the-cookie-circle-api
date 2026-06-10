@@ -81,7 +81,8 @@ Before deploying with `APP_ENV=production`:
 
 1. Set a strong `JWT_SECRET_KEY` (32+ random characters).
 2. Set `DEBUG=false`.
-3. Configure `EMAIL_PROVIDER=smtp` with valid SMTP credentials.
+3. Configure `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `EMAIL_FROM`
+   (verify `thecookiecircle.lk` in Resend and add DNS records first).
 4. Set `TRUSTED_HOSTS` to your API hostname.
 5. Restrict `CORS_ORIGINS` to the client and admin domains.
 6. Terminate HTTPS at your reverse proxy and enable `RATE_LIMIT_TRUST_PROXY=true` when the proxy sets `X-Forwarded-For`.
@@ -95,6 +96,25 @@ Before deploying with `APP_ENV=production`:
 - `POST /api/v1/auth/logout` revokes the current refresh token.
 - `POST /api/v1/auth/logout-all` revokes all refresh tokens and invalidates outstanding access tokens immediately.
 - Password reset and password change also invalidate existing sessions.
+
+### Email (Resend)
+
+Transactional email is sent from the API only (verification, password reset, welcome,
+order confirmation). Configure per environment:
+
+```bash
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_xxxxxxxx
+EMAIL_FROM=The Cookie Circle <hello@thecookiecircle.lk>
+EMAIL_REPLY_TO=hello@thecookiecircle.lk
+FRONTEND_CLIENT_URL=https://thecookiecircle.lk
+```
+
+- **Development:** use `EMAIL_PROVIDER=resend` with a real key to test delivery, or
+  `EMAIL_PROVIDER=console` when no key is set.
+- **Staging / production:** `EMAIL_PROVIDER=resend` is required; subjects are prefixed
+  with `[Staging]` or `[Dev]` automatically by environment.
+- Verify `thecookiecircle.lk` in Resend and add DNS (SPF/DKIM) before sending to customers.
 
 ### Security audit logs
 

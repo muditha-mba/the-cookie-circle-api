@@ -1,14 +1,15 @@
-"""SMTP email delivery (legacy fallback)."""
+"""Resend transactional email delivery."""
+
+from __future__ import annotations
 
 import logging
-import smtplib
-from datetime import date
-from decimal import Decimal
-from email.message import EmailMessage
+
+import httpx
 
 from app.core.config import settings
 from app.services.email.base import EmailService
 from app.services.email.templates import (
+    EmailContent,
     build_order_confirmation_email,
     build_password_reset_email,
     build_verification_email,
@@ -17,29 +18,41 @@ from app.services.email.templates import (
 
 logger = logging.getLogger(__name__)
 
+_RESEND_API_URL = "https://api.resend.com/emails"
 
-class SmtpEmailService(EmailService):
-    """Send transactional email through SMTP."""
 
-    def _send(self, *, to_email: str, content) -> None:
-        if not settings.smtp_host or not settings.smtp_from_email:
-            raise RuntimeError("SMTP is not fully configured")
+class ResendEmailService(EmailService):
+    """Send branded transactional email through Resend."""
 
-        message = EmailMessage()
-        message["Subject"] = content.subject
-        message["From"] = settings.smtp_from_email
-        message["To"] = to_email
-        message.set_content(content.text)
-        message.add_alternative(content.html, subtype="html")
+    def _send(self, *, to_email: str, content: EmailContent) -> None:
+        api_key = (settings.resend_api_key or "").strip()
+        from_address = (settings.email_from or "").strip()
+        if not api_key or not from_address:
+            raise RuntimeError("Resend is not fully configured")
 
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
-            if settings.smtp_use_tls:
-                server.starttls()
-            if settings.smtp_username and settings.smtp_password:
-                server.login(settings.smtp_username, settings.smtp_password)
-            server.send_message(message)
+        payload: dict[str, object] = {
+            "from": from_address,
+            "to": [to_email],
+            "subject": content.subject,
+            "html": content.html,
+            "text": content.text,
+        }
+        reply_to = (settings.email_reply_to or "").strip()
+        if reply_to:
+            payload["reply_to"] = reply_to
 
-        logger.info("SMTP email sent to %s (%s)", to_email, content.subject)
+        with httpx.Client(timeout=20.0) as client:
+            response = client.post(
+                _RESEND_API_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+
+        logger.info("Resend email sent to %s (%s)", to_email, content.subject)
 
     def send_verification_email(
         self,
@@ -70,8 +83,8 @@ class SmtpEmailService(EmailService):
         first_name: str,
         order_number: str,
         order_type_label: str,
-        scheduled_delivery_date: date,
-        total_amount: Decimal,
+        scheduled_delivery_date,
+        total_amount,
         whatsapp_url: str | None = None,
     ) -> None:
         content = build_order_confirmation_email(

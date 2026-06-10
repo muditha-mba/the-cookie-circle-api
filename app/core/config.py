@@ -104,10 +104,17 @@ class Settings(BaseSettings):
         description="Optional comma-separated admin API IP allowlist",
     )
 
-    email_provider: Literal["console", "smtp"] = Field(
+    email_provider: Literal["console", "smtp", "resend"] = Field(
         default="console",
         alias="EMAIL_PROVIDER",
     )
+    resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
+    email_from: str | None = Field(
+        default=None,
+        alias="EMAIL_FROM",
+        description='Sender address, e.g. "The Cookie Circle <hello@thecookiecircle.lk>"',
+    )
+    email_reply_to: str | None = Field(default=None, alias="EMAIL_REPLY_TO")
     smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_username: str | None = Field(default=None, alias="SMTP_USERNAME")
@@ -165,15 +172,32 @@ class Settings(BaseSettings):
                     "32 characters in staging and production environments",
                 )
 
-        if self.is_production:
-            if self.debug:
-                raise ValueError("DEBUG must be false when APP_ENV=production")
-            if self.email_provider != "smtp":
-                raise ValueError("EMAIL_PROVIDER must be smtp when APP_ENV=production")
-            if not self.smtp_host or not self.smtp_from_email:
+        if self.app_env in ("production", "staging"):
+            if self.email_provider == "resend":
+                if not (self.resend_api_key or "").strip():
+                    raise ValueError(
+                        "RESEND_API_KEY is required when EMAIL_PROVIDER=resend "
+                        f"and APP_ENV={self.app_env}",
+                    )
+                if not (self.email_from or "").strip():
+                    raise ValueError(
+                        "EMAIL_FROM is required when EMAIL_PROVIDER=resend "
+                        f"and APP_ENV={self.app_env}",
+                    )
+            elif self.email_provider == "smtp":
+                if not self.smtp_host or not self.smtp_from_email:
+                    raise ValueError(
+                        "SMTP_HOST and SMTP_FROM_EMAIL are required when "
+                        f"EMAIL_PROVIDER=smtp and APP_ENV={self.app_env}",
+                    )
+            else:
                 raise ValueError(
-                    "SMTP_HOST and SMTP_FROM_EMAIL are required when APP_ENV=production",
+                    f"EMAIL_PROVIDER must be resend (recommended) or smtp when "
+                    f"APP_ENV={self.app_env}",
                 )
+
+        if self.is_production and self.debug:
+            raise ValueError("DEBUG must be false when APP_ENV=production")
 
         if self.captcha_required and not (self.turnstile_secret_key or "").strip():
             raise ValueError(

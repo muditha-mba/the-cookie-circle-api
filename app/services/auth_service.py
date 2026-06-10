@@ -35,8 +35,10 @@ from app.schemas.auth import (
     UserResponse,
     VerifyEmailRequest,
 )
+from app.services.customer_attribution_service import CustomerAttributionService
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.email import get_email_service
+from app.services.email.delivery import send_email_safely
 from app.services.activity_log_service import record_admin_auth_activity
 from app.services.security_audit import log_security_event
 from app.utils.client_context import ClientContext
@@ -67,7 +69,8 @@ class AuthService:
             last_name=payload.last_name,
             email_verified=False,
         )
-        CustomerIdentityService(self.db).link_registration_to_existing_customer(user)
+        customer = CustomerIdentityService(self.db).link_registration_to_existing_customer(user)
+        CustomerAttributionService.apply_first_touch(customer, payload.attribution)
         self._issue_verification_token(user)
         self.db.commit()
         self.db.refresh(user)
@@ -87,6 +90,14 @@ class AuthService:
         self.users.mark_email_verified(user)
         self.db.commit()
         self.db.refresh(user)
+        if user.role == UserRole.CUSTOMER:
+            send_email_safely(
+                lambda: self.email_service.send_welcome_email(
+                    to_email=user.email,
+                    first_name=user.first_name,
+                ),
+                context="welcome_email",
+            )
         return UserResponse.model_validate(user)
 
     def _verify_email_with_dev_token(

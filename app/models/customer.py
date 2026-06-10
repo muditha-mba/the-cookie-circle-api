@@ -1,9 +1,10 @@
 """Customer SQLAlchemy model."""
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, ForeignKey, String, Text, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import CustomerSource, MarketingSource
@@ -56,6 +57,11 @@ class Customer(Base, TimestampMixin):
         marketing_source_enum,
         nullable=True,
         index=True,
+    )
+    marketing_attribution_json: Mapped[dict[str, Any] | None] = mapped_column(
+        "marketing_attribution",
+        JSONB,
+        nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

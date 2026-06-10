@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.enums import AdminRole, AppContext, UserRole
+from app.schemas.attribution import MarketingAttributionInput
 from app.schemas.fields import NormalizedEmail
 from app.utils.password import validate_password_strength
 
@@ -18,6 +19,7 @@ class RegisterRequest(BaseModel):
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     captcha_token: str | None = Field(default=None, max_length=4096)
+    attribution: MarketingAttributionInput | None = None
 
     @field_validator("password")
     @classmethod

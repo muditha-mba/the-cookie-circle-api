@@ -42,6 +42,9 @@ from app.schemas.client_ordering import (
 )
 from app.schemas.order import OrderCollectionLineInput, OrderProductLineInput
 from app.services.auth_service import AuthService
+from app.services.customer_attribution_service import CustomerAttributionService
+from app.services.email import get_email_service
+from app.services.email.delivery import send_email_safely
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_selection_validator import CollectionSelectionValidator
@@ -166,6 +169,7 @@ class CustomerCheckoutService:
         snapshot_result = self._build_snapshots(payload, validated, delivery_fee)
 
         customer = self._resolve_customer(payload)
+        CustomerAttributionService.apply_first_touch(customer, payload.attribution)
         shipping = payload.customer.shipping_address
         billing = (
             shipping
@@ -237,6 +241,24 @@ class CustomerCheckoutService:
         assert loaded is not None
 
         whatsapp_url = WhatsAppOrderMessageService.build_whatsapp_url(loaded)
+        customer_email = normalize_email(payload.customer.email)
+        order_type_label = (
+            "Catering"
+            if loaded.order_type == OrderType.CATERING
+            else "Weekly Delivery"
+        )
+        send_email_safely(
+            lambda: get_email_service().send_order_confirmation_email(
+                to_email=customer_email,
+                first_name=payload.customer.first_name,
+                order_number=loaded.order_number,
+                order_type_label=order_type_label,
+                scheduled_delivery_date=loaded.scheduled_delivery_date,
+                total_amount=loaded.total_revenue_snapshot,
+                whatsapp_url=whatsapp_url,
+            ),
+            context=f"order_confirmation:{loaded.order_number}",
+        )
         return ClientCheckoutResponse(
             order_id=loaded.id,
             order_number=loaded.order_number,

@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.core.enums import OrderType, PaymentMethod
+from app.schemas.attribution import MarketingAttributionInput
 from app.schemas.order_profitability import OrderFinancialSnapshot
 
 
@@ -208,6 +209,7 @@ class ClientCheckoutRequest(ClientOrderPreviewRequest):
     create_account: bool = False
     account_password: str | None = Field(default=None, min_length=8, max_length=128)
     captcha_token: str | None = Field(default=None, max_length=4096)
+    attribution: MarketingAttributionInput | None = None
 
     @model_validator(mode="after")
     def account_password_required(self) -> "ClientCheckoutRequest":
