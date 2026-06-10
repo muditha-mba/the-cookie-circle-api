@@ -11,6 +11,10 @@ from app.schemas.business_settings import (
     BusinessSettingsUpdate,
     SuggestedDeliveryDateResponse,
 )
+from app.schemas.shared_memory import (
+    SharedMemoriesSectionSettingsResponse,
+    SharedMemoriesSectionSettingsUpdate,
+)
 from app.schemas.social_media import SocialMediaSettingsResponse, SocialMediaSettingsUpdate
 from app.services.business_setting_service import BusinessSettingService
 
@@ -53,6 +57,23 @@ def update_social_media_settings(
 ) -> SocialMediaSettingsResponse:
     """Update social media link settings."""
     return service.update_social_media_settings(payload)
+
+
+@router.get("/shared-memories", response_model=SharedMemoriesSectionSettingsResponse)
+def get_shared_memories_section_settings(
+    service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
+) -> SharedMemoriesSectionSettingsResponse:
+    """Get shared memories section visibility settings."""
+    return service.get_shared_memories_section_settings()
+
+
+@router.patch("/shared-memories", response_model=SharedMemoriesSectionSettingsResponse)
+def update_shared_memories_section_settings(
+    payload: SharedMemoriesSectionSettingsUpdate,
+    service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
+) -> SharedMemoriesSectionSettingsResponse:
+    """Update shared memories section visibility on the client website."""
+    return service.update_shared_memories_section_settings(payload)
 
 
 @router.get("/suggested-delivery-date", response_model=SuggestedDeliveryDateResponse)

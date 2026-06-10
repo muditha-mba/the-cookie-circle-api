@@ -12,6 +12,7 @@ from app.models.customer import Customer
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.models.order_product_line import OrderProductLine
+from app.models.order_review import OrderReview
 from app.models.user import User
 from app.repositories.customer_insights_repository import CustomerInsightsRepository
 from app.repositories.customer_repository import CustomerRepository
@@ -130,6 +131,15 @@ class ClientAccountService:
             or 0,
         )
 
+        total_reviews = int(
+            self.db.scalar(
+                select(func.count(OrderReview.id)).where(
+                    OrderReview.customer_id == customer.id,
+                ),
+            )
+            or 0,
+        )
+
         recent_orders, _ = self.order_history.list_orders(
             customer,
             page=1,
@@ -151,7 +161,7 @@ class ClientAccountService:
             pending_orders=pending_orders,
             total_cookies_ordered=cookie_count + selection_cookie_count,
             total_collections_ordered=collection_count,
-            total_amount_spent=metrics.lifetime_spend,
+            total_reviews=total_reviews,
             favourite_cookie=self.insights.get_favourite_product_name(customer.id),
             favourite_package_type=self.insights.get_favourite_collection_name(customer.id),
             recent_orders=recent_orders,

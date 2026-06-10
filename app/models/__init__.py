@@ -22,6 +22,7 @@ from app.models.collection_product_line import CollectionProductLine
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.faq import Faq
 from app.models.faq_category import FaqCategory
+from app.models.shared_memory import SharedMemory
 from app.models.labour_charge import LabourCharge
 from app.models.delivery_area import DeliveryArea
 from app.models.order import Order
@@ -63,6 +64,7 @@ __all__ = [
     "EmailVerificationToken",
     "Faq",
     "FaqCategory",
+    "SharedMemory",
     "LabourCharge",
     "DeliveryArea",
     "Order",

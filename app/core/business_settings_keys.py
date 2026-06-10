@@ -11,6 +11,7 @@ BUSINESS_EMAIL = "business_email"
 STRIPE_ENABLED = "stripe_enabled"
 BANK_TRANSFER_ENABLED = "bank_transfer_enabled"
 COD_ENABLED = "cod_enabled"
+SHARED_MEMORIES_ENABLED = "shared_memories_enabled"
 
 
 def social_url_key(platform: SocialPlatform) -> str:
@@ -37,5 +38,6 @@ ALL_KEYS = (
     STRIPE_ENABLED,
     BANK_TRANSFER_ENABLED,
     COD_ENABLED,
+    SHARED_MEMORIES_ENABLED,
     *SOCIAL_KEYS,
 )

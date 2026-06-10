@@ -16,6 +16,10 @@ from app.schemas.business_settings import (
     SuggestedDeliveryDateResponse,
 )
 from app.schemas.client_site import ClientSiteProfileResponse, ClientSocialLink
+from app.schemas.shared_memory import (
+    SharedMemoriesSectionSettingsResponse,
+    SharedMemoriesSectionSettingsUpdate,
+)
 from app.schemas.social_media import (
     SocialMediaLink,
     SocialMediaSettingsResponse,
@@ -39,6 +43,7 @@ class BusinessSettingService:
         keys.STRIPE_ENABLED: "false",
         keys.BANK_TRANSFER_ENABLED: "true",
         keys.COD_ENABLED: "true",
+        keys.SHARED_MEMORIES_ENABLED: "false",
     }
 
     def __init__(self, db: Session) -> None:
@@ -120,6 +125,23 @@ class BusinessSettingService:
 
         self.db.commit()
         return SocialMediaSettingsResponse(links=self._social_links_from_map(self._load_map()))
+
+    def get_shared_memories_section_enabled(self) -> bool:
+        data = self._load_map()
+        return data.get(keys.SHARED_MEMORIES_ENABLED, "false").lower() == "true"
+
+    def get_shared_memories_section_settings(self) -> SharedMemoriesSectionSettingsResponse:
+        return SharedMemoriesSectionSettingsResponse(
+            section_enabled=self.get_shared_memories_section_enabled(),
+        )
+
+    def update_shared_memories_section_settings(
+        self,
+        payload: SharedMemoriesSectionSettingsUpdate,
+    ) -> SharedMemoriesSectionSettingsResponse:
+        self.settings.upsert(keys.SHARED_MEMORIES_ENABLED, str(payload.section_enabled).lower())
+        self.db.commit()
+        return SharedMemoriesSectionSettingsResponse(section_enabled=payload.section_enabled)
 
     def get_client_site_profile(self) -> ClientSiteProfileResponse:
         data = self._load_map()
