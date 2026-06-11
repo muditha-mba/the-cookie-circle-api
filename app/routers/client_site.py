@@ -10,7 +10,7 @@ from app.dependencies.admin import (
     get_shared_memory_service,
 )
 from app.schemas.client_site import ClientSiteProfileResponse
-from app.schemas.faq import ClientFaqCategoryGroup
+from app.schemas.faq import ClientFaqsResponse
 from app.schemas.shared_memory import ClientSharedMemoriesResponse
 from app.services.business_setting_service import BusinessSettingService
 from app.services.faq_service import FaqService
@@ -27,10 +27,10 @@ def get_client_site_profile(
     return service.get_client_site_profile()
 
 
-@router.get("/faqs", response_model=list[ClientFaqCategoryGroup])
+@router.get("/faqs", response_model=ClientFaqsResponse)
 def list_client_faqs(
     service: Annotated[FaqService, Depends(get_faq_service)],
-) -> list[ClientFaqCategoryGroup]:
+) -> ClientFaqsResponse:
     """List active FAQs grouped by category for the client website."""
     return service.list_active_public()
 

@@ -10,9 +10,11 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.models.faq import Faq
 from app.repositories.faq_category_repository import FaqCategoryRepository
 from app.repositories.faq_repository import FaqRepository
+from app.services.business_setting_service import BusinessSettingService
 from app.schemas.faq import (
     ClientFaqCategoryGroup,
     ClientFaqItem,
+    ClientFaqsResponse,
     FaqCreate,
     FaqResponse,
     FaqUpdate,
@@ -56,41 +58,45 @@ class FaqService:
     def list_all(self) -> list[FaqResponse]:
         return [self._to_response(item) for item in self.faqs.list_all()]
 
-    def list_active_public(self) -> list[ClientFaqCategoryGroup]:
-        schedule_copy = get_delivery_schedule_copy(self.db)
-        categories = self.categories.list_active()
-        active_faqs = self.faqs.list_active()
-
-        faqs_by_category: dict[uuid.UUID, list[Faq]] = {}
-        for faq in active_faqs:
-            faqs_by_category.setdefault(faq.category_id, []).append(faq)
-
+    def list_active_public(self) -> ClientFaqsResponse:
+        section_enabled = BusinessSettingService(self.db).get_faqs_section_enabled()
         groups: list[ClientFaqCategoryGroup] = []
-        for category in categories:
-            category_faqs = faqs_by_category.get(category.id, [])
-            if not category_faqs:
-                continue
-            groups.append(
-                ClientFaqCategoryGroup(
-                    id=category.id,
-                    name=category.name,
-                    sort_order=category.sort_order,
-                    faqs=[
-                        ClientFaqItem(
-                            id=item.id,
-                            question=item.question,
-                            answer=resolve_schedule_faq_answer(
+
+        if section_enabled:
+            schedule_copy = get_delivery_schedule_copy(self.db)
+            categories = self.categories.list_active()
+            active_faqs = self.faqs.list_active()
+
+            faqs_by_category: dict[uuid.UUID, list[Faq]] = {}
+            for faq in active_faqs:
+                faqs_by_category.setdefault(faq.category_id, []).append(faq)
+
+            for category in categories:
+                category_faqs = faqs_by_category.get(category.id, [])
+                if not category_faqs:
+                    continue
+                groups.append(
+                    ClientFaqCategoryGroup(
+                        id=category.id,
+                        name=category.name,
+                        sort_order=category.sort_order,
+                        faqs=[
+                            ClientFaqItem(
+                                id=item.id,
                                 question=item.question,
-                                stored_answer=item.answer,
-                                copy=schedule_copy,
-                            ),
-                            sort_order=item.sort_order,
-                        )
-                        for item in category_faqs
-                    ],
-                ),
-            )
-        return groups
+                                answer=resolve_schedule_faq_answer(
+                                    question=item.question,
+                                    stored_answer=item.answer,
+                                    copy=schedule_copy,
+                                ),
+                                sort_order=item.sort_order,
+                            )
+                            for item in category_faqs
+                        ],
+                    ),
+                )
+
+        return ClientFaqsResponse(section_enabled=section_enabled, categories=groups)
 
     def update(self, faq_id: uuid.UUID, payload: FaqUpdate) -> FaqResponse:
         faq = self.faqs.get_by_id(faq_id)

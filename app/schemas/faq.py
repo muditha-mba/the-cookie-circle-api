@@ -75,3 +75,22 @@ class ClientFaqCategoryGroup(BaseModel):
     name: str
     sort_order: int
     faqs: list[ClientFaqItem]
+
+
+class ClientFaqsResponse(BaseModel):
+    """Public FAQs payload for the client website."""
+
+    section_enabled: bool
+    categories: list[ClientFaqCategoryGroup]
+
+
+class FaqsSectionSettingsResponse(BaseModel):
+    """Admin settings for FAQ section visibility."""
+
+    section_enabled: bool
+
+
+class FaqsSectionSettingsUpdate(BaseModel):
+    """Update FAQ section visibility."""
+
+    section_enabled: bool

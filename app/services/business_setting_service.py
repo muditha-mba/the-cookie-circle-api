@@ -16,6 +16,7 @@ from app.schemas.business_settings import (
     SuggestedDeliveryDateResponse,
 )
 from app.schemas.client_site import ClientSiteProfileResponse, ClientSocialLink
+from app.schemas.faq import FaqsSectionSettingsResponse, FaqsSectionSettingsUpdate
 from app.schemas.shared_memory import (
     SharedMemoriesSectionSettingsResponse,
     SharedMemoriesSectionSettingsUpdate,
@@ -44,6 +45,7 @@ class BusinessSettingService:
         keys.BANK_TRANSFER_ENABLED: "true",
         keys.COD_ENABLED: "true",
         keys.SHARED_MEMORIES_ENABLED: "false",
+        keys.FAQS_ENABLED: "true",
     }
 
     def __init__(self, db: Session) -> None:
@@ -142,6 +144,21 @@ class BusinessSettingService:
         self.settings.upsert(keys.SHARED_MEMORIES_ENABLED, str(payload.section_enabled).lower())
         self.db.commit()
         return SharedMemoriesSectionSettingsResponse(section_enabled=payload.section_enabled)
+
+    def get_faqs_section_enabled(self) -> bool:
+        data = self._load_map()
+        return data.get(keys.FAQS_ENABLED, "true").lower() == "true"
+
+    def get_faqs_section_settings(self) -> FaqsSectionSettingsResponse:
+        return FaqsSectionSettingsResponse(section_enabled=self.get_faqs_section_enabled())
+
+    def update_faqs_section_settings(
+        self,
+        payload: FaqsSectionSettingsUpdate,
+    ) -> FaqsSectionSettingsResponse:
+        self.settings.upsert(keys.FAQS_ENABLED, str(payload.section_enabled).lower())
+        self.db.commit()
+        return FaqsSectionSettingsResponse(section_enabled=payload.section_enabled)
 
     def get_client_site_profile(self) -> ClientSiteProfileResponse:
         data = self._load_map()

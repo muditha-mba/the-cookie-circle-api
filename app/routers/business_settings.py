@@ -12,6 +12,7 @@ from app.schemas.business_settings import (
     BusinessSettingsUpdate,
     SuggestedDeliveryDateResponse,
 )
+from app.schemas.faq import FaqsSectionSettingsResponse, FaqsSectionSettingsUpdate
 from app.schemas.shared_memory import (
     SharedMemoriesSectionSettingsResponse,
     SharedMemoriesSectionSettingsUpdate,
@@ -81,6 +82,25 @@ def update_shared_memories_section_settings(
 ) -> SharedMemoriesSectionSettingsResponse:
     """Update shared memories section visibility on the client website."""
     return service.update_shared_memories_section_settings(payload)
+
+
+@router.get("/faqs", response_model=FaqsSectionSettingsResponse)
+def get_faqs_section_settings(
+    _: Annotated[object, Depends(require_super_admin)],
+    service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
+) -> FaqsSectionSettingsResponse:
+    """Get FAQ section visibility settings."""
+    return service.get_faqs_section_settings()
+
+
+@router.patch("/faqs", response_model=FaqsSectionSettingsResponse)
+def update_faqs_section_settings(
+    _: Annotated[object, Depends(require_super_admin)],
+    payload: FaqsSectionSettingsUpdate,
+    service: Annotated[BusinessSettingService, Depends(get_business_setting_service)],
+) -> FaqsSectionSettingsResponse:
+    """Update FAQ section visibility on the client website."""
+    return service.update_faqs_section_settings(payload)
 
 
 @router.get("/suggested-delivery-date", response_model=SuggestedDeliveryDateResponse)
