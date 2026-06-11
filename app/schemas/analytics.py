@@ -443,6 +443,7 @@ class OrderAnalyticsKpiResponse(BaseModel):
     completion_rate: AnalyticsKpiMetric
     average_order_value: AnalyticsKpiMetric
     revenue_from_orders: AnalyticsKpiMetric
+    package_fee_revenue: AnalyticsKpiMetric
     average_profit_per_order: AnalyticsKpiMetric
     average_margin_percentage: AnalyticsKpiMetric
 
@@ -541,6 +542,7 @@ class OrderAnalyticsPerformanceRow(BaseModel):
     package_type: str
     collections_value_snapshot: Decimal
     products_value_snapshot: Decimal
+    package_fee_revenue_snapshot: Decimal
     total_revenue_snapshot: Decimal
     total_cost_snapshot: Decimal
     total_profit_snapshot: Decimal

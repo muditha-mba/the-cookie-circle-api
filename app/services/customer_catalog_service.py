@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.collection import Collection
 from app.models.collection_package import CollectionPackage
 from app.models.product import Product
+from app.utils.premium_packaging_copy import premium_packaging_included_for_collection
 from app.schemas.client_ordering import (
     ClientCatalogCollection,
     ClientCatalogPackage,
@@ -66,8 +67,11 @@ class CustomerCatalogService:
             package_code=collection.package.code,
             package_name=collection.package.name,
             package_size=collection.package_size,
-            package_fee=collection.package_fee,
             allowed_category_ids=[category.id for category in collection.allowed_categories],
+            premium_packaging_included=premium_packaging_included_for_collection(
+                package_code=collection.package.code,
+                package_fee=collection.package_fee,
+            ),
         )
 
     def _load_selectable_products(self) -> list[ClientCatalogProduct]:

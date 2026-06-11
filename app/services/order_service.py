@@ -51,6 +51,7 @@ from app.services.delivery_schedule_service import DeliveryScheduleService
 from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.order_selection_snapshot import build_order_collection_line_selection
+from app.services.order_notification_service import notify_team_new_order
 from app.services.product_cost_service import _money
 
 _STATUS_TIMESTAMP_FIELDS: dict[OrderStatus, str] = {
@@ -131,6 +132,7 @@ class OrderService:
         self.db.commit()
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
+        notify_team_new_order(loaded)
         return self._to_detail(loaded)
 
     def get(self, order_id: uuid.UUID) -> OrderDetailResponse:

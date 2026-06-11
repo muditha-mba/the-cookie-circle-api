@@ -9,6 +9,7 @@ from email.message import EmailMessage
 from app.core.config import settings
 from app.services.email.base import EmailService
 from app.services.email.templates import (
+    build_internal_order_notification_email,
     build_order_confirmation_email,
     build_password_reset_email,
     build_verification_email,
@@ -73,6 +74,7 @@ class SmtpEmailService(EmailService):
         scheduled_delivery_date: date,
         total_amount: Decimal,
         whatsapp_url: str | None = None,
+        premium_packaging_notice: str | None = None,
     ) -> None:
         content = build_order_confirmation_email(
             first_name=first_name,
@@ -81,5 +83,41 @@ class SmtpEmailService(EmailService):
             scheduled_delivery_date=scheduled_delivery_date,
             total_amount=total_amount,
             whatsapp_url=whatsapp_url,
+            premium_packaging_notice=premium_packaging_notice,
+        )
+        self._send(to_email=to_email, content=content)
+
+    def send_internal_order_notification_email(
+        self,
+        *,
+        to_email: str,
+        order_number: str,
+        order_source_label: str,
+        order_type_label: str,
+        customer_name: str,
+        customer_email: str | None,
+        customer_phone: str | None,
+        scheduled_delivery_date: date,
+        total_amount: Decimal,
+        admin_order_url: str,
+        products_subtotal: Decimal | None = None,
+        collections_subtotal: Decimal | None = None,
+        package_fee_revenue: Decimal | None = None,
+        delivery_fee: Decimal | None = None,
+    ) -> None:
+        content = build_internal_order_notification_email(
+            order_number=order_number,
+            order_source_label=order_source_label,
+            order_type_label=order_type_label,
+            customer_name=customer_name,
+            customer_email=customer_email,
+            customer_phone=customer_phone,
+            scheduled_delivery_date=scheduled_delivery_date,
+            total_amount=total_amount,
+            admin_order_url=admin_order_url,
+            products_subtotal=products_subtotal,
+            collections_subtotal=collections_subtotal,
+            package_fee_revenue=package_fee_revenue,
+            delivery_fee=delivery_fee,
         )
         self._send(to_email=to_email, content=content)

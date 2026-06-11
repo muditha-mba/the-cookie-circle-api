@@ -115,6 +115,11 @@ class Settings(BaseSettings):
         description='Sender address, e.g. "The Cookie Circle <hello@thecookiecircle.lk>"',
     )
     email_reply_to: str | None = Field(default=None, alias="EMAIL_REPLY_TO")
+    order_notification_email: str | None = Field(
+        default="hello@thecookiecircle.lk",
+        alias="ORDER_NOTIFICATION_EMAIL",
+        description="Internal inbox notified when a new order is created. Leave empty to disable.",
+    )
     smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_username: str | None = Field(default=None, alias="SMTP_USERNAME")

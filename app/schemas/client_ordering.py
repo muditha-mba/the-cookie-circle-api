@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
-from app.core.enums import OrderType, PaymentMethod
+from app.core.enums import OrderType, PaymentMethod, Weekday
 from app.schemas.attribution import MarketingAttributionInput
 from app.schemas.order_profitability import OrderFinancialSnapshot
 
@@ -27,7 +27,23 @@ class ClientProductLineInput(BaseModel):
     quantity: Decimal = Field(gt=0)
 
 
-class WeeklyDeliveryInfoResponse(BaseModel):
+class DeliveryScheduleCopyResponse(BaseModel):
+    """Public delivery schedule messaging from business settings."""
+
+    order_cutoff_day: Weekday
+    delivery_day: Weekday
+    order_cutoff_day_label: str
+    delivery_day_label: str
+    explanation: str
+    reserve_before_message: str
+    preorder_note: str
+    order_before_message: str
+    cutoff_period_label: str
+    cutoff_timing_note: str
+    fresh_delivery_message: str
+
+
+class WeeklyDeliveryInfoResponse(DeliveryScheduleCopyResponse):
     order_type: OrderType = OrderType.WEEKLY_DELIVERY
     calculated_delivery_date: date
     is_before_cutoff: bool
@@ -64,8 +80,22 @@ class ClientCatalogCollection(BaseModel):
     package_code: str
     package_name: str
     package_size: int
-    package_fee: Decimal
     allowed_category_ids: list[UUID]
+    premium_packaging_included: bool = Field(
+        description=(
+            "Whether this collection's price includes a premium packaging fee "
+            "(amount is not exposed to customers)."
+        ),
+    )
+
+
+class ClientCollectionQuoteRequest(BaseModel):
+    collection_id: UUID
+    selections: list[CollectionCookieSelectionInput]
+
+
+class ClientCollectionQuoteResponse(BaseModel):
+    unit_price: Decimal
 
 
 class ClientCatalogPackage(BaseModel):

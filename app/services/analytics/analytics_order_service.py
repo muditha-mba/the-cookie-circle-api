@@ -9,6 +9,7 @@ from app.repositories.analytics_repository import (
     ONLINE_ORDER_SOURCES,
     AnalyticsRepository,
 )
+from app.utils.order_package_fee import package_fee_revenue_from_order
 from app.schemas.analytics import (
     AnalyticsKpiMetric,
     AnalyticsQueryParams,
@@ -198,6 +199,10 @@ class AnalyticsOrderService:
             completion_rate=_kpi_metric(completion_rate, prev_completion_rate),
             average_order_value=_kpi_metric(average_order_value, prev_average_order_value),
             revenue_from_orders=_kpi_metric(agg.total_revenue, prev.total_revenue),
+            package_fee_revenue=_kpi_metric(
+                agg.total_package_fees,
+                prev.total_package_fees,
+            ),
             average_profit_per_order=_kpi_metric(
                 average_profit_per_order,
                 prev_average_profit_per_order,
@@ -554,6 +559,7 @@ class AnalyticsOrderService:
             package_type=package_type,
             collections_value_snapshot=order.collections_subtotal_snapshot,
             products_value_snapshot=order.products_subtotal_snapshot,
+            package_fee_revenue_snapshot=package_fee_revenue_from_order(order),
             total_revenue_snapshot=order.total_revenue_snapshot,
             total_cost_snapshot=order.total_cost_snapshot,
             total_profit_snapshot=order.total_profit_snapshot,

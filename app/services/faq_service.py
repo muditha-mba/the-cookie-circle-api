@@ -18,6 +18,8 @@ from app.schemas.faq import (
     FaqUpdate,
 )
 from app.schemas.faq_category import FaqCategorySummary
+from app.services.delivery_schedule_copy_service import get_delivery_schedule_copy
+from app.utils.faq_schedule import resolve_schedule_faq_answer
 
 
 class FaqService:
@@ -55,6 +57,7 @@ class FaqService:
         return [self._to_response(item) for item in self.faqs.list_all()]
 
     def list_active_public(self) -> list[ClientFaqCategoryGroup]:
+        schedule_copy = get_delivery_schedule_copy(self.db)
         categories = self.categories.list_active()
         active_faqs = self.faqs.list_active()
 
@@ -76,7 +79,11 @@ class FaqService:
                         ClientFaqItem(
                             id=item.id,
                             question=item.question,
-                            answer=item.answer,
+                            answer=resolve_schedule_faq_answer(
+                                question=item.question,
+                                stored_answer=item.answer,
+                                copy=schedule_copy,
+                            ),
                             sort_order=item.sort_order,
                         )
                         for item in category_faqs

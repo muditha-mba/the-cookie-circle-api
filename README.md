@@ -115,6 +115,8 @@ FRONTEND_CLIENT_URL=https://thecookiecircle.lk
 - **Staging / production:** `EMAIL_PROVIDER=resend` is required; subjects are prefixed
   with `[Staging]` or `[Dev]` automatically by environment.
 - Verify `thecookiecircle.lk` in Resend and add DNS (SPF/DKIM) before sending to customers.
+- `ORDER_NOTIFICATION_EMAIL` sends an internal alert to your team inbox (default:
+  `hello@thecookiecircle.lk`) whenever a new order is created. Set empty to disable.
 
 ### Security audit logs
 

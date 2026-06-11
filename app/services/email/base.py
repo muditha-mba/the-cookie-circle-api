@@ -37,5 +37,27 @@ class EmailService(ABC):
         scheduled_delivery_date: date,
         total_amount: Decimal,
         whatsapp_url: str | None = None,
+        premium_packaging_notice: str | None = None,
     ) -> None:
         """Send an order confirmation email after checkout."""
+
+    @abstractmethod
+    def send_internal_order_notification_email(
+        self,
+        *,
+        to_email: str,
+        order_number: str,
+        order_source_label: str,
+        order_type_label: str,
+        customer_name: str,
+        customer_email: str | None,
+        customer_phone: str | None,
+        scheduled_delivery_date: date,
+        total_amount: Decimal,
+        admin_order_url: str,
+        products_subtotal: Decimal | None = None,
+        collections_subtotal: Decimal | None = None,
+        package_fee_revenue: Decimal | None = None,
+        delivery_fee: Decimal | None = None,
+    ) -> None:
+        """Notify the business inbox that a new order was created."""

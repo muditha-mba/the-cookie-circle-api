@@ -190,6 +190,7 @@ class ClientAccountOrderDetailResponse(BaseModel):
     delivery_longitude: Decimal | None
     collection_lines: list[ClientAccountOrderCollectionLine]
     product_lines: list[ClientAccountOrderProductLine]
+    premium_packaging_notice: str | None = None
 
 
 ClientAccountDashboardResponse.model_rebuild()

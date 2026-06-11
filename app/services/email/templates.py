@@ -8,6 +8,7 @@ from decimal import Decimal
 from html import escape
 
 from app.core.config import settings
+from app.services.delivery_schedule_copy_service import get_delivery_schedule_copy_standalone
 
 # Kandyan Luxury palette (aligned with client globals.css)
 COLOR_CREAM = "#FAF6F0"
@@ -72,10 +73,14 @@ def _render_layout(
     footer_note: str | None = None,
 ) -> str:
     """Responsive table-based email shell with paper texture styling."""
+    schedule = get_delivery_schedule_copy_standalone()
     safe_preheader = escape(preheader)
     safe_eyebrow = escape(eyebrow)
     safe_headline = escape(headline)
     safe_footer = escape(footer_note or "")
+    safe_brand_tagline = escape(
+        f"Crafted Fresh, Every {schedule.delivery_day_label}",
+    )
 
     cta_block = ""
     if cta_label and cta_url:
@@ -184,7 +189,7 @@ def _render_layout(
             <td align="center"
                 style="padding:24px 12px 0;font-family:Inter,Arial,sans-serif;font-size:12px;
                        line-height:1.6;color:{COLOR_TEXT_MUTED};">
-              The Cookie Circle · Crafted Fresh, Every Saturday<br />
+              The Cookie Circle · {safe_brand_tagline}<br />
               Handcrafted in Kandy, Sri Lanka
             </td>
           </tr>
@@ -289,8 +294,7 @@ def build_welcome_email(*, first_name: str | None) -> EmailContent:
         handcrafted batches prepared with care in Kandy.
       </p>
       <p style="margin:0;color:{COLOR_TEXT_MUTED};font-size:14px;">
-        We bake in small batches — orders placed on or before Thursday evening join the
-        upcoming Saturday delivery batch.
+        {escape(get_delivery_schedule_copy_standalone().explanation)}
       </p>"""
     html = _render_layout(
         preheader="Welcome to The Cookie Circle — your account is ready.",
@@ -321,6 +325,7 @@ def build_order_confirmation_email(
     scheduled_delivery_date: date,
     total_amount: Decimal,
     whatsapp_url: str | None = None,
+    premium_packaging_notice: str | None = None,
 ) -> EmailContent:
     safe_name = escape(first_name.strip() or "there")
     details_rows = [
@@ -340,6 +345,15 @@ def build_order_confirmation_email(
         for label, value in details_rows
     )
 
+    premium_packaging_html = ""
+    if premium_packaging_notice:
+        premium_packaging_html = f"""
+      <p style="margin:0 0 18px;padding:12px 14px;border-radius:10px;
+                background:{COLOR_PARCHMENT};font-size:13px;line-height:1.5;
+                color:{COLOR_CHOCOLATE};">
+        🎁 {escape(premium_packaging_notice)}
+      </p>"""
+
     body_html = f"""
       <p style="margin:0 0 18px;">
         Thank you, {safe_name}. We have received your order and our team will prepare your
@@ -348,8 +362,11 @@ def build_order_confirmation_email(
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
              style="margin:0 0 18px;border-collapse:collapse;">
         {details_html}
-      </table>
+      </table>{premium_packaging_html}
       <p style="margin:0;color:{COLOR_TEXT_MUTED};font-size:14px;">
+        {escape(get_delivery_schedule_copy_standalone().explanation)}
+      </p>
+      <p style="margin:12px 0 0;color:{COLOR_TEXT_MUTED};font-size:14px;">
         If you have not already completed your WhatsApp confirmation, please do so to help
         our team finalize your order smoothly.
       </p>"""
@@ -367,7 +384,11 @@ def build_order_confirmation_email(
         footer_note="Questions? Reply to this email or message us on WhatsApp.",
     )
 
+    schedule = get_delivery_schedule_copy_standalone()
     whatsapp_line = f"\nWhatsApp confirmation: {whatsapp_url}\n" if whatsapp_url else ""
+    premium_packaging_line = (
+        f"\n{premium_packaging_notice}\n" if premium_packaging_notice else ""
+    )
     text = (
         f"{_subject_prefix()}Your Cookie Circle order {order_number}\n\n"
         f"Thank you, {first_name.strip() or 'there'}.\n\n"
@@ -375,10 +396,114 @@ def build_order_confirmation_email(
         f"Order type: {order_type_label}\n"
         f"Scheduled delivery: {_format_date(scheduled_delivery_date)}\n"
         f"Customer total: {_format_lkr(total_amount)}\n"
+        f"{premium_packaging_line}\n"
+        f"{schedule.explanation}\n"
         f"{whatsapp_line}"
     )
     return EmailContent(
         subject=f"{_subject_prefix()}Your Cookie Circle order {order_number}",
+        html=html,
+        text=text,
+    )
+
+
+def build_internal_order_notification_email(
+    *,
+    order_number: str,
+    order_source_label: str,
+    order_type_label: str,
+    customer_name: str,
+    customer_email: str | None,
+    customer_phone: str | None,
+    scheduled_delivery_date: date,
+    total_amount: Decimal,
+    admin_order_url: str,
+    products_subtotal: Decimal | None = None,
+    collections_subtotal: Decimal | None = None,
+    package_fee_revenue: Decimal | None = None,
+    delivery_fee: Decimal | None = None,
+) -> EmailContent:
+    details_rows = [
+        ("Order number", escape(order_number)),
+        ("Channel", escape(order_source_label)),
+        ("Order type", escape(order_type_label)),
+        ("Customer", escape(customer_name)),
+        ("Email", escape(customer_email or "—")),
+        ("Phone", escape(customer_phone or "—")),
+        ("Scheduled delivery", escape(_format_date(scheduled_delivery_date))),
+    ]
+    if products_subtotal is not None and products_subtotal > 0:
+        details_rows.append(
+            ("Cookies subtotal", escape(_format_lkr(products_subtotal))),
+        )
+    if collections_subtotal is not None and collections_subtotal > 0:
+        details_rows.append(
+            ("Collections subtotal", escape(_format_lkr(collections_subtotal))),
+        )
+    if package_fee_revenue is not None and package_fee_revenue > 0:
+        details_rows.append(
+            ("Package fee revenue", escape(_format_lkr(package_fee_revenue))),
+        )
+    if delivery_fee is not None and delivery_fee > 0:
+        details_rows.append(("Delivery fee", escape(_format_lkr(delivery_fee))))
+    details_rows.append(("Customer total", escape(_format_lkr(total_amount))))
+    details_html = "".join(
+        f"""
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid {COLOR_PARCHMENT};
+                     font-size:13px;color:{COLOR_TEXT_MUTED};width:42%;">{label}</td>
+          <td style="padding:10px 0;border-bottom:1px solid {COLOR_PARCHMENT};
+                     font-size:14px;color:{COLOR_CHOCOLATE};font-weight:600;">{value}</td>
+        </tr>"""
+        for label, value in details_rows
+    )
+
+    body_html = f"""
+      <p style="margin:0 0 18px;">
+        A new order has been placed and is ready for your team to review in the admin panel.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+             style="margin:0 0 18px;border-collapse:collapse;">
+        {details_html}
+      </table>
+      <p style="margin:0;color:{COLOR_TEXT_MUTED};font-size:14px;">
+        This notification is sent only to your internal team inbox.
+      </p>"""
+
+    html = _render_layout(
+        preheader=f"New order {order_number} received.",
+        eyebrow="Team alert",
+        headline="New order received",
+        body_html=body_html,
+        cta_label="Open in admin",
+        cta_url=admin_order_url,
+    )
+    text_lines = [
+        f"{_subject_prefix()}New Cookie Circle order {order_number}\n",
+        f"Channel: {order_source_label}",
+        f"Order type: {order_type_label}",
+        f"Customer: {customer_name}",
+        f"Email: {customer_email or '—'}",
+        f"Phone: {customer_phone or '—'}",
+        f"Scheduled delivery: {_format_date(scheduled_delivery_date)}",
+    ]
+    if products_subtotal is not None and products_subtotal > 0:
+        text_lines.append(f"Cookies subtotal: {_format_lkr(products_subtotal)}")
+    if collections_subtotal is not None and collections_subtotal > 0:
+        text_lines.append(f"Collections subtotal: {_format_lkr(collections_subtotal)}")
+    if package_fee_revenue is not None and package_fee_revenue > 0:
+        text_lines.append(f"Package fee revenue: {_format_lkr(package_fee_revenue)}")
+    if delivery_fee is not None and delivery_fee > 0:
+        text_lines.append(f"Delivery fee: {_format_lkr(delivery_fee)}")
+    text_lines.extend(
+        [
+            f"Customer total: {_format_lkr(total_amount)}\n",
+            f"Admin: {admin_order_url}\n",
+        ],
+    )
+    text = "\n".join(text_lines)
+    return EmailContent(
+        subject=f"{_subject_prefix()}New order {order_number}",
         html=html,
         text=text,
     )
