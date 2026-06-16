@@ -32,6 +32,7 @@ from app.routers.production import router as production_router
 from app.routers.suppliers import router as suppliers_router
 from app.routers.health import router as health_router
 from app.routers.labour_charges import router as labour_charges_router
+from app.routers.media import router as media_router
 from app.routers.product_item_types import router as product_item_types_router
 from app.routers.product_categories import router as product_categories_router
 from app.routers.product_items import router as product_items_router
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     setup_cors(app)
 
     app.include_router(health_router)
+    app.include_router(media_router, prefix=settings.api_v1_prefix)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(client_ordering_router, prefix=settings.api_v1_prefix)
     app.include_router(client_site_router, prefix=settings.api_v1_prefix)
