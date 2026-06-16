@@ -548,6 +548,9 @@ class OrderAnalyticsPerformanceRow(BaseModel):
     total_profit_snapshot: Decimal
     margin_percentage_snapshot: Decimal
     delivery_fee_snapshot: Decimal
+    delivery_cost_snapshot: Decimal
+    package_fee_revenue_snapshot: Decimal
+    packaging_cost_snapshot: Decimal
     payment_method: PaymentMethod
     payment_status: PaymentStatus
     status: OrderStatus

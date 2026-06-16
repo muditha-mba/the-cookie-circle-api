@@ -13,6 +13,11 @@ class OrderFinancialSnapshot(BaseModel):
     products_subtotal_snapshot: Decimal
     collections_subtotal_snapshot: Decimal
     delivery_fee_snapshot: Decimal
+    delivery_cost_snapshot: Decimal
+    package_fee_revenue_snapshot: Decimal
+    packaging_cost_snapshot: Decimal
+    products_cost_snapshot: Decimal
+    collections_cost_snapshot: Decimal
     total_revenue_snapshot: Decimal
     total_cost_snapshot: Decimal
     total_profit_snapshot: Decimal

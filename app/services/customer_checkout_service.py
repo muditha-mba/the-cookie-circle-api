@@ -60,7 +60,7 @@ from app.services.customer_delivery_date_service import (
     CATERING_MIN_COOKIE_QUANTITY,
     CustomerDeliveryDateService,
 )
-from app.services.delivery_fee_service import resolve_delivery_fee
+from app.services.delivery_fee_service import is_pickup_delivery_area, resolve_delivery_fee
 from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
 from app.utils.email import normalize_email
@@ -143,7 +143,12 @@ class CustomerCheckoutService:
         settings = self.settings.get_settings()
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
-        snapshot_result = self._build_snapshots(payload, validated, delivery_fee)
+        snapshot_result = self._build_snapshots(
+            payload,
+            validated,
+            delivery_fee,
+            is_pickup=is_pickup_delivery_area(delivery_area),
+        )
 
         explanation = (
             get_delivery_schedule_copy(self.db).explanation
@@ -190,7 +195,12 @@ class CustomerCheckoutService:
         self._validate_payment_method(settings, payload.payment_method)
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
-        snapshot_result = self._build_snapshots(payload, validated, delivery_fee)
+        snapshot_result = self._build_snapshots(
+            payload,
+            validated,
+            delivery_fee,
+            is_pickup=is_pickup_delivery_area(delivery_area),
+        )
 
         customer = self._resolve_customer(payload)
         CustomerAttributionService.apply_first_touch(customer, payload.attribution)
@@ -381,6 +391,8 @@ class CustomerCheckoutService:
         payload: ClientOrderPreviewRequest,
         validated: ValidatedOrderRequest,
         delivery_fee: Decimal,
+        *,
+        is_pickup: bool,
     ):
         return self.profitability.build_order_snapshots(
             product_lines=[
@@ -403,6 +415,7 @@ class CustomerCheckoutService:
                 for line in validated.collection_lines
             ],
             delivery_fee=delivery_fee,
+            is_pickup=is_pickup,
         )
 
     @staticmethod

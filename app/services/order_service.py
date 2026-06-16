@@ -46,7 +46,7 @@ from app.schemas.order_profitability import TopProfitableOrderRow
 from app.schemas.order_review import OrderReviewSummaryEmbed
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.business_setting_service import BusinessSettingService
-from app.services.delivery_fee_service import resolve_delivery_fee
+from app.services.delivery_fee_service import is_pickup_delivery_area, resolve_delivery_fee
 from app.services.delivery_schedule_service import DeliveryScheduleService
 from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.order_profitability_service import OrderProfitabilityService
@@ -94,6 +94,7 @@ class OrderService:
         settings = self.business_settings.get_settings()
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
+        is_pickup = is_pickup_delivery_area(delivery_area)
         scheduled_delivery_date = DeliveryScheduleService.calculate_delivery_date(
             order_date=date.today(),
             cutoff_day=settings.order_cutoff_day,
@@ -105,6 +106,7 @@ class OrderService:
             product_lines=payload.product_lines,
             collection_lines=payload.collection_lines,
             delivery_fee=delivery_fee,
+            is_pickup=is_pickup,
         )
 
         order = Order(
@@ -162,6 +164,11 @@ class OrderService:
                 status=order.status,
                 requested_delivery_date=order.requested_delivery_date,
                 scheduled_delivery_date=order.scheduled_delivery_date,
+                delivery_area=(
+                    DeliveryAreaSummary.model_validate(order.delivery_area)
+                    if order.delivery_area
+                    else None
+                ),
                 total_revenue_snapshot=order.total_revenue_snapshot,
                 total_profit_snapshot=order.total_profit_snapshot,
                 created_at=order.created_at,
@@ -193,7 +200,11 @@ class OrderService:
             order.delivery_area_id = delivery_area.id if delivery_area else None
             if payload.product_lines is None and payload.collection_lines is None:
                 fee = resolve_delivery_fee(settings, delivery_area)
-                self.profitability.apply_delivery_fee_snapshot(order, fee)
+                self.profitability.apply_delivery_fee_snapshot(
+                    order,
+                    fee,
+                    is_pickup=is_pickup_delivery_area(delivery_area),
+                )
 
         if payload.source is not None:
             order.source = payload.source
@@ -250,11 +261,13 @@ class OrderService:
             delivery_fee = order.delivery_fee_snapshot
             if delivery_area_changed:
                 delivery_fee = resolve_delivery_fee(settings, delivery_area)
+            is_pickup = is_pickup_delivery_area(delivery_area)
 
             snapshot_result = self.profitability.build_order_snapshots(
                 product_lines=product_inputs,
                 collection_lines=collection_inputs,
                 delivery_fee=delivery_fee,
+                is_pickup=is_pickup,
             )
             order.product_lines.clear()
             order.collection_lines.clear()
@@ -288,16 +301,23 @@ class OrderService:
         settings = self.business_settings.get_settings()
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
+        is_pickup = is_pickup_delivery_area(delivery_area)
         snapshot_result = self.profitability.build_order_snapshots(
             product_lines=payload.product_lines,
             collection_lines=payload.collection_lines,
             delivery_fee=delivery_fee,
+            is_pickup=is_pickup,
         )
         financials = snapshot_result.financials
         return OrderPreviewResponse(
             products_subtotal_snapshot=financials.products_subtotal_snapshot,
             collections_subtotal_snapshot=financials.collections_subtotal_snapshot,
             delivery_fee_snapshot=financials.delivery_fee_snapshot,
+            delivery_cost_snapshot=financials.delivery_cost_snapshot,
+            package_fee_revenue_snapshot=financials.package_fee_revenue_snapshot,
+            packaging_cost_snapshot=financials.packaging_cost_snapshot,
+            products_cost_snapshot=financials.products_cost_snapshot,
+            collections_cost_snapshot=financials.collections_cost_snapshot,
             total_revenue_snapshot=financials.total_revenue_snapshot,
             total_cost_snapshot=financials.total_cost_snapshot,
             total_profit_snapshot=financials.total_profit_snapshot,
@@ -582,6 +602,9 @@ class OrderService:
             billing_postal_code=order.billing_postal_code,
             billing_landmark=order.billing_landmark,
             delivery_fee_snapshot=order.delivery_fee_snapshot,
+            delivery_cost_snapshot=order.delivery_cost_snapshot,
+            package_fee_revenue_snapshot=order.package_fee_revenue_snapshot,
+            packaging_cost_snapshot=order.packaging_cost_snapshot,
             total_revenue_snapshot=order.total_revenue_snapshot,
             financial_performance=OrderFinancialPerformance(
                 snapshot=self.profitability.financial_snapshot_from_order(order),

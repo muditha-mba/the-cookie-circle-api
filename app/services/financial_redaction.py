@@ -115,6 +115,11 @@ def redact_order_preview(preview: OrderPreviewResponse) -> OrderPreviewResponse:
     return preview.model_copy(
         update={
             "total_cost_snapshot": _zero(),
+            "delivery_cost_snapshot": _zero(),
+            "package_fee_revenue_snapshot": _zero(),
+            "packaging_cost_snapshot": _zero(),
+            "products_cost_snapshot": _zero(),
+            "collections_cost_snapshot": _zero(),
             "total_profit_snapshot": _zero(),
             "margin_percentage_snapshot": _zero(),
             "product_lines": [redact_order_product_line(line) for line in preview.product_lines],

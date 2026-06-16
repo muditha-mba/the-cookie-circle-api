@@ -70,7 +70,10 @@ class OrderRepository:
         sort_by: str,
         sort_order: str,
     ) -> tuple[list[Order], int]:
-        stmt = select(Order).options(selectinload(Order.customer))
+        stmt = select(Order).options(
+            selectinload(Order.customer),
+            selectinload(Order.delivery_area),
+        )
         count_stmt = select(func.count()).select_from(Order)
 
         if search:

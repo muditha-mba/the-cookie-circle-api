@@ -9,7 +9,6 @@ from app.repositories.analytics_repository import (
     ONLINE_ORDER_SOURCES,
     AnalyticsRepository,
 )
-from app.utils.order_package_fee import package_fee_revenue_from_order
 from app.schemas.analytics import (
     AnalyticsKpiMetric,
     AnalyticsQueryParams,
@@ -559,12 +558,14 @@ class AnalyticsOrderService:
             package_type=package_type,
             collections_value_snapshot=order.collections_subtotal_snapshot,
             products_value_snapshot=order.products_subtotal_snapshot,
-            package_fee_revenue_snapshot=package_fee_revenue_from_order(order),
+            package_fee_revenue_snapshot=order.package_fee_revenue_snapshot,
             total_revenue_snapshot=order.total_revenue_snapshot,
             total_cost_snapshot=order.total_cost_snapshot,
             total_profit_snapshot=order.total_profit_snapshot,
             margin_percentage_snapshot=order.margin_percentage_snapshot,
             delivery_fee_snapshot=order.delivery_fee_snapshot,
+            delivery_cost_snapshot=order.delivery_cost_snapshot,
+            packaging_cost_snapshot=order.packaging_cost_snapshot,
             payment_method=order.payment_method,
             payment_status=order.payment_status,
             status=order.status,
