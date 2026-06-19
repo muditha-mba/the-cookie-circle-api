@@ -33,6 +33,7 @@ from app.services.customer_service import CustomerService
 from app.services.delivery_area_service import DeliveryAreaService
 from app.services.faq_category_service import FaqCategoryService
 from app.services.faq_service import FaqService
+from app.services.consumption_proposal_service import ConsumptionProposalService
 from app.services.inventory_balance_service import InventoryBalanceService
 from app.services.inventory_lot_service import InventoryLotService
 from app.services.inventory_movement_service import InventoryMovementService
@@ -308,3 +309,9 @@ def get_purchase_receipt_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> PurchaseReceiptService:
     return PurchaseReceiptService(db)
+
+
+def get_consumption_proposal_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ConsumptionProposalService:
+    return ConsumptionProposalService(db)

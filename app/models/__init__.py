@@ -38,6 +38,12 @@ from app.models.product_associations import (
     product_tax_charges,
     product_utility_charges,
 )
+from app.models.inventory_consumption_proposal import InventoryConsumptionProposal
+from app.models.inventory_consumption_proposal_line import InventoryConsumptionProposalLine
+from app.models.inventory_consumption_proposal_lot_allocation import (
+    InventoryConsumptionProposalLotAllocation,
+)
+from app.models.inventory_consumption_proposal_order import InventoryConsumptionProposalOrder
 from app.models.inventory_lot import InventoryLot
 from app.models.inventory_movement import InventoryMovement
 from app.models.purchase_receipt import PurchaseReceipt
@@ -72,6 +78,10 @@ __all__ = [
     "FaqCategory",
     "SharedMemory",
     "LabourCharge",
+    "InventoryConsumptionProposal",
+    "InventoryConsumptionProposalLine",
+    "InventoryConsumptionProposalLotAllocation",
+    "InventoryConsumptionProposalOrder",
     "InventoryLot",
     "InventoryMovement",
     "PurchaseReceipt",

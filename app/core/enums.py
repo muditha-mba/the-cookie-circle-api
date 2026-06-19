@@ -200,6 +200,21 @@ class PurchaseReceiptStatus(str, enum.Enum):
     CONFIRMED = "confirmed"
 
 
+class ConsumptionProposalStatus(str, enum.Enum):
+    """Inventory consumption proposal lifecycle."""
+
+    PENDING_REVIEW = "pending_review"
+    APPROVED = "approved"
+    DISMISSED = "dismissed"
+
+
+class ConsumptionDemandType(str, enum.Enum):
+    """Ingredient vs packaging demand on a consumption proposal line."""
+
+    INGREDIENT = "ingredient"
+    PACKAGING = "packaging"
+
+
 class ActivityAction(str, enum.Enum):
     """Admin activity log action."""
 
@@ -243,6 +258,7 @@ class ActivityResourceType(str, enum.Enum):
     INVENTORY_LOT = "inventory_lot"
     INVENTORY_MOVEMENT = "inventory_movement"
     PURCHASE_RECEIPT = "purchase_receipt"
+    CONSUMPTION_PROPOSAL = "consumption_proposal"
 
 
 class ClientDeviceType(str, enum.Enum):

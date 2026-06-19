@@ -21,8 +21,10 @@ from app.models.product import Product
 from app.repositories.collection_repository import CollectionRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.delivery_area_repository import DeliveryAreaRepository
+from app.repositories.consumption_proposal_repository import ConsumptionProposalRepository
 from app.repositories.order_repository import OrderRepository
 from app.repositories.order_review_repository import OrderReviewRepository
+from app.services.consumption_proposal_service import ConsumptionProposalService
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.order import (
@@ -33,6 +35,7 @@ from app.schemas.order import (
     OrderCustomerSummary,
     OrderDetailResponse,
     OrderFinancialPerformance,
+    OrderInventoryConsumptionSummary,
     OrderLifecycleTimestamps,
     OrderPreviewRequest,
     OrderPreviewResponse,
@@ -83,6 +86,7 @@ class OrderService:
         self.profitability = OrderProfitabilityService(db)
         self.selection_validator = CollectionSelectionValidator(db)
         self.order_reviews = OrderReviewRepository(db)
+        self.consumption_proposals = ConsumptionProposalRepository(db)
 
     def create(self, payload: OrderCreate) -> OrderDetailResponse:
         customer = self.customers.get_by_id(payload.customer_id)
@@ -286,6 +290,15 @@ class OrderService:
 
         self.db.add(order)
         self.db.commit()
+
+        if (
+            payload.status == OrderStatus.DELIVERED
+            and previous_status != OrderStatus.DELIVERED
+        ):
+            ConsumptionProposalService(self.db).refresh_for_delivery_date(
+                order.scheduled_delivery_date,
+            )
+
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
         return self._to_detail(loaded)
@@ -623,6 +636,13 @@ class OrderService:
                 ready_at=order.ready_at,
                 delivered_at=order.delivered_at,
                 cancelled_at=order.cancelled_at,
+            ),
+            inventory_consumption=OrderInventoryConsumptionSummary(
+                consumed_at=order.inventory_consumed_at,
+                applied_proposal_id=order.inventory_consumption_proposal_id,
+                pending_proposal_id=self.consumption_proposals.get_pending_proposal_id_for_order(
+                    order.id,
+                ),
             ),
             customer_review=customer_review,
             created_at=order.created_at,

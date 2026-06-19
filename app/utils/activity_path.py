@@ -34,6 +34,7 @@ _RESOURCE_BY_SEGMENT: dict[str, ActivityResourceType] = {
     "activity-logs": ActivityResourceType.SYSTEM,
     "inventory": ActivityResourceType.INVENTORY_LOT,
     "purchase-receipts": ActivityResourceType.PURCHASE_RECEIPT,
+    "consumption-proposals": ActivityResourceType.CONSUMPTION_PROPOSAL,
 }
 
 _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
@@ -64,6 +65,7 @@ _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
     ActivityResourceType.INVENTORY_LOT: "Inventory",
     ActivityResourceType.INVENTORY_MOVEMENT: "Inventory movement",
     ActivityResourceType.PURCHASE_RECEIPT: "Purchase receipt",
+    ActivityResourceType.CONSUMPTION_PROPOSAL: "Consumption proposal",
 }
 
 

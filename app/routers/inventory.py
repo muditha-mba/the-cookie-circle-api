@@ -6,8 +6,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.core.enums import InventoryMovementType
+from app.core.enums import ConsumptionProposalStatus, InventoryMovementType
 from app.dependencies.admin import (
+    get_consumption_proposal_service,
     get_current_admin_user,
     get_inventory_balance_service,
     get_inventory_lot_service,
@@ -15,6 +16,13 @@ from app.dependencies.admin import (
 )
 from app.dependencies.permissions import require_super_admin
 from app.models.user import User
+from app.schemas.consumption_proposal import (
+    ConsumptionProposalGenerateRequest,
+    ConsumptionProposalPendingCount,
+    ConsumptionProposalResponse,
+    ConsumptionProposalSummary,
+    ConsumptionProposalUpdate,
+)
 from app.schemas.inventory import (
     InventoryAdjustmentCreate,
     InventoryAlertResponse,
@@ -25,6 +33,7 @@ from app.schemas.inventory import (
     InventoryWasteCreate,
 )
 from app.schemas.pagination import PaginatedResponse, PaginationParams
+from app.services.consumption_proposal_service import ConsumptionProposalService
 from app.services.inventory_balance_service import InventoryBalanceService
 from app.services.inventory_lot_service import InventoryLotService
 from app.services.inventory_movement_service import InventoryMovementService
@@ -123,3 +132,85 @@ def record_inventory_waste(
 ) -> InventoryMovementResponse:
     """Record waste on a lot."""
     return service.record_waste(payload, user_id=current_user.id)
+
+
+@router.get("/consumption-proposals/pending-count", response_model=ConsumptionProposalPendingCount)
+def get_consumption_pending_count(
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalPendingCount:
+    """Count of consumption proposals awaiting review."""
+    return service.get_pending_count()
+
+
+@router.get("/consumption-proposals", response_model=PaginatedResponse[ConsumptionProposalSummary])
+def list_consumption_proposals(
+    params: Annotated[PaginationParams, Depends()],
+    proposal_status: Annotated[ConsumptionProposalStatus | None, Query(alias="status")] = None,
+    delivery_date: Annotated[date | None, Query()] = None,
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> PaginatedResponse[ConsumptionProposalSummary]:
+    """List consumption proposals."""
+    return service.list(params, status=proposal_status, delivery_date=delivery_date)
+
+
+@router.post(
+    "/consumption-proposals/generate",
+    response_model=ConsumptionProposalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_consumption_proposal(
+    payload: ConsumptionProposalGenerateRequest,
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalResponse:
+    """Manually generate or refresh a consumption review."""
+    return service.generate(payload, user_id=current_user.id)
+
+
+@router.get("/consumption-proposals/by-date/{delivery_date}", response_model=ConsumptionProposalResponse | None)
+def get_pending_consumption_for_date(
+    delivery_date: date,
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalResponse | None:
+    """Pending consumption proposal for a delivery date, if any."""
+    return service.get_pending_for_delivery_date(delivery_date)
+
+
+@router.get("/consumption-proposals/{proposal_id}", response_model=ConsumptionProposalResponse)
+def get_consumption_proposal(
+    proposal_id: uuid.UUID,
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalResponse:
+    """Consumption proposal detail."""
+    return service.get(proposal_id)
+
+
+@router.patch("/consumption-proposals/{proposal_id}", response_model=ConsumptionProposalResponse)
+def update_consumption_proposal(
+    proposal_id: uuid.UUID,
+    payload: ConsumptionProposalUpdate,
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalResponse:
+    """Update approved quantities or notes on a pending proposal."""
+    return service.update(proposal_id, payload, user_id=current_user.id)
+
+
+@router.post("/consumption-proposals/{proposal_id}/approve", response_model=ConsumptionProposalResponse)
+def approve_consumption_proposal(
+    proposal_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalResponse:
+    """Approve proposal and deduct stock."""
+    return service.approve(proposal_id, user_id=current_user.id)
+
+
+@router.post("/consumption-proposals/{proposal_id}/dismiss", response_model=ConsumptionProposalResponse)
+def dismiss_consumption_proposal(
+    proposal_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[ConsumptionProposalService, Depends(get_consumption_proposal_service)] = ...,
+) -> ConsumptionProposalResponse:
+    """Dismiss a pending proposal without changing stock."""
+    return service.dismiss(proposal_id, user_id=current_user.id)

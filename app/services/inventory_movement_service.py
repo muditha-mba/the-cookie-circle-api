@@ -150,6 +150,26 @@ class InventoryMovementService:
             user_id=user_id,
         )
 
+    def record_consumption_movement(
+        self,
+        *,
+        lot: InventoryLot,
+        quantity: Decimal,
+        reference_id: uuid.UUID,
+        user_id: uuid.UUID | None,
+        notes: str | None = None,
+    ) -> InventoryMovement:
+        quantity_change = (-quantity).quantize(QTY_PRECISION)
+        return self._apply_quantity_change(
+            lot=lot,
+            quantity_change=quantity_change,
+            movement_type=InventoryMovementType.CONSUMPTION,
+            reference_type=InventoryMovementReferenceType.CONSUMPTION_PROPOSAL,
+            reference_id=reference_id,
+            notes=notes,
+            user_id=user_id,
+        )
+
     def _apply_quantity_change(
         self,
         *,

@@ -21,6 +21,8 @@ from app.core.enums import (
     ProductionBatchStatus,
     PurchasePlanningStatus,
     PurchaseReceiptStatus,
+    ConsumptionDemandType,
+    ConsumptionProposalStatus,
     ReviewItemSentiment,
 )
 
@@ -134,6 +136,18 @@ inventory_movement_reference_type_enum = Enum(
 purchase_receipt_status_enum = Enum(
     PurchaseReceiptStatus,
     name="purchase_receipt_status",
+    values_callable=_enum_values,
+)
+
+consumption_proposal_status_enum = Enum(
+    ConsumptionProposalStatus,
+    name="consumption_proposal_status",
+    values_callable=_enum_values,
+)
+
+consumption_demand_type_enum = Enum(
+    ConsumptionDemandType,
+    name="consumption_demand_type",
     values_callable=_enum_values,
 )
 

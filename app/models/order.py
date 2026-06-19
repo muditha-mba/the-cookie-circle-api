@@ -130,6 +130,16 @@ class Order(Base, TimestampMixin):
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    inventory_consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    inventory_consumption_proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("inventory_consumption_proposals.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="orders")
     delivery_area: Mapped["DeliveryArea | None"] = relationship("DeliveryArea", back_populates="orders")

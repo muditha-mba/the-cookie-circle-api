@@ -197,6 +197,14 @@ class OrderLifecycleTimestamps(BaseModel):
     cancelled_at: datetime | None
 
 
+class OrderInventoryConsumptionSummary(BaseModel):
+    """Inventory consumption state for an order."""
+
+    consumed_at: datetime | None
+    applied_proposal_id: UUID | None
+    pending_proposal_id: UUID | None
+
+
 class OrderSummaryResponse(BaseModel):
     """Order list item."""
 
@@ -246,6 +254,7 @@ class OrderDetailResponse(OrderDeliveryFields, OrderBillingFields):
     collection_lines: list[OrderCollectionLineResponse]
     status_timeline: list[OrderStatusEventResponse]
     lifecycle: OrderLifecycleTimestamps
+    inventory_consumption: OrderInventoryConsumptionSummary
     customer_review: OrderReviewSummaryEmbed | None = None
     created_at: datetime
     updated_at: datetime
