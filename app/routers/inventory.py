@@ -11,6 +11,7 @@ from app.dependencies.admin import (
     get_consumption_proposal_service,
     get_current_admin_user,
     get_inventory_balance_service,
+    get_inventory_expense_service,
     get_inventory_lot_service,
     get_inventory_movement_service,
 )
@@ -32,9 +33,11 @@ from app.schemas.inventory import (
     InventoryMovementResponse,
     InventoryWasteCreate,
 )
+from app.schemas.inventory_readiness import InventoryExpenseSummaryResponse
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.services.consumption_proposal_service import ConsumptionProposalService
 from app.services.inventory_balance_service import InventoryBalanceService
+from app.services.inventory_expense_service import InventoryExpenseService
 from app.services.inventory_lot_service import InventoryLotService
 from app.services.inventory_movement_service import InventoryMovementService
 
@@ -69,8 +72,18 @@ def get_inventory_alerts(
     expiring_within_days: Annotated[int, Query(ge=1, le=90)] = 7,
     service: Annotated[InventoryBalanceService, Depends(get_inventory_balance_service)] = ...,
 ) -> InventoryAlertResponse:
-    """Low-stock and expiry alert counts."""
+    """Low-stock, expiry, consumption, and upcoming shortfall alert counts."""
     return service.get_alerts(expiring_within_days=expiring_within_days)
+
+
+@router.get("/expense-summary", response_model=InventoryExpenseSummaryResponse)
+def get_inventory_expense_summary(
+    from_date: Annotated[date, Query()],
+    to_date: Annotated[date, Query()],
+    service: Annotated[InventoryExpenseService, Depends(get_inventory_expense_service)] = ...,
+) -> InventoryExpenseSummaryResponse:
+    """Confirmed purchase receipt spend for a date range."""
+    return service.get_summary(from_date=from_date, to_date=to_date)
 
 
 @router.get("/lots", response_model=PaginatedResponse[InventoryLotSummary])

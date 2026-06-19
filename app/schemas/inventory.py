@@ -72,3 +72,5 @@ class InventoryAlertResponse(BaseModel):
     low_stock_count: int
     expiring_soon_count: int
     pending_consumption_count: int = 0
+    upcoming_shortfall_count: int = 0
+    upcoming_shortfall_delivery_date: date | None = None

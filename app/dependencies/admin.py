@@ -315,3 +315,19 @@ def get_consumption_proposal_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> ConsumptionProposalService:
     return ConsumptionProposalService(db)
+
+
+def get_inventory_readiness_service(
+    db: Annotated[Session, Depends(get_db)],
+):
+    from app.services.inventory_readiness_service import InventoryReadinessService
+
+    return InventoryReadinessService(db)
+
+
+def get_inventory_expense_service(
+    db: Annotated[Session, Depends(get_db)],
+):
+    from app.services.inventory_expense_service import InventoryExpenseService
+
+    return InventoryExpenseService(db)

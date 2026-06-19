@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.exceptions import NotFoundError
 from app.models.inventory_lot import InventoryLot
 from app.models.product_item import ProductItem
+from app.repositories.analytics_repository import AnalyticsRepository
 from app.repositories.consumption_proposal_repository import ConsumptionProposalRepository
 from app.repositories.inventory_lot_repository import InventoryLotRepository
 from app.repositories.product_item_repository import ProductItemRepository
@@ -93,10 +94,21 @@ class InventoryBalanceService:
         )
         expiring_soon_count = int(self.db.scalar(expiring_stmt) or 0)
 
+        upcoming_shortfall_count = 0
+        upcoming_shortfall_delivery_date = None
+        upcoming_date = AnalyticsRepository(self.db).fetch_next_delivery_date_on_or_after(date.today())
+        if upcoming_date is not None:
+            from app.services.inventory_readiness_service import InventoryReadinessService
+
+            upcoming_shortfall_count = InventoryReadinessService(self.db).count_shortfalls(upcoming_date)
+            upcoming_shortfall_delivery_date = upcoming_date
+
         return InventoryAlertResponse(
             low_stock_count=low_stock_count,
             expiring_soon_count=expiring_soon_count,
             pending_consumption_count=ConsumptionProposalRepository(self.db).count_pending(),
+            upcoming_shortfall_count=upcoming_shortfall_count,
+            upcoming_shortfall_delivery_date=upcoming_shortfall_delivery_date,
         )
 
     def sum_on_hand(self, product_item_id: uuid.UUID) -> Decimal:
