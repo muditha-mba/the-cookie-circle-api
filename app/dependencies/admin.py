@@ -33,6 +33,10 @@ from app.services.customer_service import CustomerService
 from app.services.delivery_area_service import DeliveryAreaService
 from app.services.faq_category_service import FaqCategoryService
 from app.services.faq_service import FaqService
+from app.services.inventory_balance_service import InventoryBalanceService
+from app.services.inventory_lot_service import InventoryLotService
+from app.services.inventory_movement_service import InventoryMovementService
+from app.services.purchase_receipt_service import PurchaseReceiptService
 from app.services.shared_memory_service import SharedMemoryService
 from app.services.dashboard_service import DashboardService
 from app.services.order_service import OrderService
@@ -280,3 +284,27 @@ def get_activity_log_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> ActivityLogService:
     return ActivityLogService(db)
+
+
+def get_inventory_balance_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryBalanceService:
+    return InventoryBalanceService(db)
+
+
+def get_inventory_lot_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryLotService:
+    return InventoryLotService(db)
+
+
+def get_inventory_movement_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryMovementService:
+    return InventoryMovementService(db)
+
+
+def get_purchase_receipt_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> PurchaseReceiptService:
+    return PurchaseReceiptService(db)

@@ -176,6 +176,30 @@ class PurchasePlanningStatus(str, enum.Enum):
     ORDERED = "ordered"
 
 
+class InventoryMovementType(str, enum.Enum):
+    """Inventory ledger movement classification."""
+
+    RECEIPT = "receipt"
+    ADJUSTMENT = "adjustment"
+    WASTE = "waste"
+    CONSUMPTION = "consumption"
+
+
+class InventoryMovementReferenceType(str, enum.Enum):
+    """Source document linked to an inventory movement."""
+
+    PURCHASE_RECEIPT = "purchase_receipt"
+    MANUAL = "manual"
+    CONSUMPTION_PROPOSAL = "consumption_proposal"
+
+
+class PurchaseReceiptStatus(str, enum.Enum):
+    """Purchase receipt lifecycle."""
+
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+
+
 class ActivityAction(str, enum.Enum):
     """Admin activity log action."""
 
@@ -216,6 +240,9 @@ class ActivityResourceType(str, enum.Enum):
     AUTH = "auth"
     USER = "user"
     SYSTEM = "system"
+    INVENTORY_LOT = "inventory_lot"
+    INVENTORY_MOVEMENT = "inventory_movement"
+    PURCHASE_RECEIPT = "purchase_receipt"
 
 
 class ClientDeviceType(str, enum.Enum):

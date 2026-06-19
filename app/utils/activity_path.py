@@ -32,6 +32,8 @@ _RESOURCE_BY_SEGMENT: dict[str, ActivityResourceType] = {
     "users": ActivityResourceType.USER,
     "auth": ActivityResourceType.AUTH,
     "activity-logs": ActivityResourceType.SYSTEM,
+    "inventory": ActivityResourceType.INVENTORY_LOT,
+    "purchase-receipts": ActivityResourceType.PURCHASE_RECEIPT,
 }
 
 _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
@@ -59,6 +61,9 @@ _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
     ActivityResourceType.USER: "User",
     ActivityResourceType.AUTH: "Authentication",
     ActivityResourceType.SYSTEM: "System",
+    ActivityResourceType.INVENTORY_LOT: "Inventory",
+    ActivityResourceType.INVENTORY_MOVEMENT: "Inventory movement",
+    ActivityResourceType.PURCHASE_RECEIPT: "Purchase receipt",
 }
 
 

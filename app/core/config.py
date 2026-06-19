@@ -159,6 +159,11 @@ class Settings(BaseSettings):
         alias="S3_REVIEWS_PREFIX",
         description="S3 prefix reserved for future customer review image uploads",
     )
+    s3_purchase_receipts_prefix: str = Field(
+        default="purchase-receipts",
+        alias="S3_PURCHASE_RECEIPTS_PREFIX",
+        description="S3 prefix for supplier bill uploads on purchase receipts",
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

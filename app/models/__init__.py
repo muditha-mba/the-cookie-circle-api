@@ -38,6 +38,10 @@ from app.models.product_associations import (
     product_tax_charges,
     product_utility_charges,
 )
+from app.models.inventory_lot import InventoryLot
+from app.models.inventory_movement import InventoryMovement
+from app.models.purchase_receipt import PurchaseReceipt
+from app.models.purchase_receipt_line import PurchaseReceiptLine
 from app.models.product_item import ProductItem
 from app.models.product_item_type import ProductItemType
 from app.models.product_recipe_line import ProductRecipeLine
@@ -68,6 +72,10 @@ __all__ = [
     "FaqCategory",
     "SharedMemory",
     "LabourCharge",
+    "InventoryLot",
+    "InventoryMovement",
+    "PurchaseReceipt",
+    "PurchaseReceiptLine",
     "DeliveryArea",
     "Order",
     "OrderCollectionLine",

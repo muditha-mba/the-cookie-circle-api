@@ -29,8 +29,10 @@ from app.routers.dashboard import router as dashboard_router
 from app.routers.delivery_areas import router as delivery_areas_router
 from app.routers.orders import router as orders_router
 from app.routers.production import router as production_router
+from app.routers.purchase_receipts import router as purchase_receipts_router
 from app.routers.suppliers import router as suppliers_router
 from app.routers.health import router as health_router
+from app.routers.inventory import router as inventory_router
 from app.routers.labour_charges import router as labour_charges_router
 from app.routers.media import router as media_router
 from app.routers.product_item_types import router as product_item_types_router
@@ -102,6 +104,8 @@ def create_app() -> FastAPI:
     app.include_router(orders_router, prefix=settings.api_v1_prefix)
     app.include_router(production_router, prefix=settings.api_v1_prefix)
     app.include_router(suppliers_router, prefix=settings.api_v1_prefix)
+    app.include_router(inventory_router, prefix=settings.api_v1_prefix)
+    app.include_router(purchase_receipts_router, prefix=settings.api_v1_prefix)
     app.include_router(analytics_router, prefix=settings.api_v1_prefix)
     app.include_router(activity_logs_router, prefix=settings.api_v1_prefix)
     app.include_router(users_router, prefix=settings.api_v1_prefix)

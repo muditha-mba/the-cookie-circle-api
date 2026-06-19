@@ -10,6 +10,8 @@ from app.core.enums import (
     CollectionSelectionMode,
     CommunicationType,
     CustomerSource,
+    InventoryMovementReferenceType,
+    InventoryMovementType,
     MarketingSource,
     OrderSource,
     OrderStatus,
@@ -18,6 +20,7 @@ from app.core.enums import (
     PaymentStatus,
     ProductionBatchStatus,
     PurchasePlanningStatus,
+    PurchaseReceiptStatus,
     ReviewItemSentiment,
 )
 
@@ -113,6 +116,24 @@ production_batch_status_enum = Enum(
 purchase_planning_status_enum = Enum(
     PurchasePlanningStatus,
     name="purchase_planning_status",
+    values_callable=_enum_values,
+)
+
+inventory_movement_type_enum = Enum(
+    InventoryMovementType,
+    name="inventory_movement_type",
+    values_callable=_enum_values,
+)
+
+inventory_movement_reference_type_enum = Enum(
+    InventoryMovementReferenceType,
+    name="inventory_movement_reference_type",
+    values_callable=_enum_values,
+)
+
+purchase_receipt_status_enum = Enum(
+    PurchaseReceiptStatus,
+    name="purchase_receipt_status",
     values_callable=_enum_values,
 )
 
