@@ -15,7 +15,6 @@ from app.repositories.product_item_repository import ProductItemRepository
 from app.repositories.product_repository import ProductRepository
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.product import (
-    AttachedChargeSummary,
     ProductCostBreakdown,
     ProductCostPreviewRequest,
     ProductCreate,
@@ -25,7 +24,6 @@ from app.schemas.product import (
     RecipeLineInput,
 )
 from app.services.product_cost_service import calculate_breakdown_for_product, calculate_product_cost_breakdown
-from app.utils.charge_applicability import PRODUCT_APPLICABILITIES, validate_charges_for_target
 
 
 class ProductService:
@@ -53,12 +51,6 @@ class ProductService:
             is_public=payload.is_public,
         )
         self._apply_recipe_lines(product, payload.recipe_lines)
-        self._apply_charges(
-            product,
-            utility_charge_ids=payload.utility_charge_ids,
-            labour_charge_ids=payload.labour_charge_ids,
-            tax_charge_ids=payload.tax_charge_ids,
-        )
         self.products.create(product)
         self.db.commit()
         loaded = self.products.get_by_id(product.id)
@@ -94,14 +86,9 @@ class ProductService:
 
         update_data = payload.model_dump(
             exclude_unset=True,
-            exclude={
-                "recipe_lines",
-                "utility_charge_ids",
-                "labour_charge_ids",
-                "tax_charge_ids",
-            },
+            exclude={"recipe_lines"},
         )
-        if not update_data and payload.recipe_lines is None and payload.utility_charge_ids is None and payload.labour_charge_ids is None and payload.tax_charge_ids is None:
+        if not update_data and payload.recipe_lines is None:
             raise ValidationError("No fields provided to update")
 
         if payload.name is not None:
@@ -130,14 +117,6 @@ class ProductService:
         if payload.recipe_lines is not None:
             self._replace_recipe_lines(product, payload.recipe_lines)
 
-        if payload.utility_charge_ids is not None or payload.labour_charge_ids is not None or payload.tax_charge_ids is not None:
-            self._apply_charges(
-                product,
-                utility_charge_ids=payload.utility_charge_ids if payload.utility_charge_ids is not None else [c.id for c in product.utility_charges],
-                labour_charge_ids=payload.labour_charge_ids if payload.labour_charge_ids is not None else [c.id for c in product.labour_charges],
-                tax_charge_ids=payload.tax_charge_ids if payload.tax_charge_ids is not None else [c.id for c in product.tax_charges],
-            )
-
         self.db.add(product)
         self.db.commit()
         loaded = self.products.get_by_id(product.id)
@@ -153,29 +132,11 @@ class ProductService:
 
     def preview_cost(self, payload: ProductCostPreviewRequest) -> ProductCostBreakdown:
         recipe_lines = self._build_preview_recipe_lines(payload.recipe_lines)
-        utility = self._resolve_charges(
-            payload.utility_charge_ids,
-            self.products.get_utility_charges_by_ids,
-            "utility",
-        )
-        labour = self._resolve_charges(
-            payload.labour_charge_ids,
-            self.products.get_labour_charges_by_ids,
-            "labour",
-        )
-        tax = self._resolve_charges(
-            payload.tax_charge_ids,
-            self.products.get_tax_charges_by_ids,
-            "tax",
-        )
         return calculate_product_cost_breakdown(
             selling_price=payload.selling_price,
             buffer_amount=payload.buffer_amount,
             yield_quantity=payload.yield_quantity,
             recipe_lines=recipe_lines,
-            utility_charges=utility,
-            labour_charges=labour,
-            tax_charges=tax,
         )
 
     def _replace_recipe_lines(self, product: Product, lines: list[RecipeLineInput]) -> None:
@@ -203,43 +164,6 @@ class ProductService:
                     quantity=line.quantity,
                 ),
             )
-
-    def _apply_charges(
-        self,
-        product: Product,
-        *,
-        utility_charge_ids: list[uuid.UUID],
-        labour_charge_ids: list[uuid.UUID],
-        tax_charge_ids: list[uuid.UUID],
-    ) -> None:
-        product.utility_charges = self._resolve_charges(
-            utility_charge_ids,
-            self.products.get_utility_charges_by_ids,
-            "utility",
-        )
-        product.labour_charges = self._resolve_charges(
-            labour_charge_ids,
-            self.products.get_labour_charges_by_ids,
-            "labour",
-        )
-        product.tax_charges = self._resolve_charges(
-            tax_charge_ids,
-            self.products.get_tax_charges_by_ids,
-            "tax",
-        )
-
-    def _resolve_charges(self, ids: list[uuid.UUID], loader, label: str):
-        if not ids:
-            return []
-        charges = loader(ids)
-        if len(charges) != len(set(ids)):
-            raise NotFoundError(f"One or more {label} charges were not found")
-        validate_charges_for_target(
-            charges,
-            target_label="product",
-            allowed=PRODUCT_APPLICABILITIES,
-        )
-        return charges
 
     def _load_product_items(self, ids: list[uuid.UUID]):
         items: dict[uuid.UUID, object] = {}
@@ -287,9 +211,6 @@ class ProductService:
             created_at=product.created_at,
             updated_at=product.updated_at,
             recipe_lines=breakdown.ingredients.lines,
-            utility_charges=[self._charge_summary(c) for c in product.utility_charges],
-            labour_charges=[self._charge_summary(c) for c in product.labour_charges],
-            tax_charges=[self._charge_summary(c) for c in product.tax_charges],
             cost_breakdown=breakdown,
         )
 
@@ -300,14 +221,3 @@ class ProductService:
         if not category.is_active:
             raise ValidationError(f"Product category is inactive: {category.name}")
         return category
-
-    @staticmethod
-    def _charge_summary(charge) -> AttachedChargeSummary:
-        return AttachedChargeSummary(
-            id=charge.id,
-            name=charge.name,
-            charge_type=charge.charge_type.value,
-            amount=charge.amount,
-            applicability=charge.applicability.value,
-            is_active=charge.is_active,
-        )

@@ -12,11 +12,8 @@ from app.models.collection_item_line import CollectionItemLine
 from app.models.collection_package import CollectionPackage
 from app.models.collection_product_line import CollectionProductLine
 from app.models.product_item import ProductItem
-from app.models.labour_charge import LabourCharge
 from app.models.product import Product
 from app.models.product_recipe_line import ProductRecipeLine
-from app.models.tax_charge import TaxCharge
-from app.models.utility_charge import UtilityCharge
 from app.utils.search import ilike_contains
 
 
@@ -38,9 +35,6 @@ class CollectionRepository:
     def _detail_options(self):
         product_costing = (
             selectinload(Product.recipe_lines).joinedload(ProductRecipeLine.product_item),
-            selectinload(Product.utility_charges),
-            selectinload(Product.labour_charges),
-            selectinload(Product.tax_charges),
         )
         return (
             selectinload(Collection.product_lines)
@@ -49,9 +43,6 @@ class CollectionRepository:
             selectinload(Collection.item_lines)
             .joinedload(CollectionItemLine.product_item)
             .joinedload(ProductItem.item_type),
-            selectinload(Collection.utility_charges),
-            selectinload(Collection.labour_charges),
-            selectinload(Collection.tax_charges),
             selectinload(Collection.package),
             selectinload(Collection.allowed_categories),
         )
@@ -137,22 +128,4 @@ class CollectionRepository:
         if not ids:
             return []
         stmt = select(Product).where(Product.id.in_(ids))
-        return list(self.db.scalars(stmt).all())
-
-    def get_utility_charges_by_ids(self, ids: list[uuid.UUID]) -> list[UtilityCharge]:
-        if not ids:
-            return []
-        stmt = select(UtilityCharge).where(UtilityCharge.id.in_(ids))
-        return list(self.db.scalars(stmt).all())
-
-    def get_labour_charges_by_ids(self, ids: list[uuid.UUID]) -> list[LabourCharge]:
-        if not ids:
-            return []
-        stmt = select(LabourCharge).where(LabourCharge.id.in_(ids))
-        return list(self.db.scalars(stmt).all())
-
-    def get_tax_charges_by_ids(self, ids: list[uuid.UUID]) -> list[TaxCharge]:
-        if not ids:
-            return []
-        stmt = select(TaxCharge).where(TaxCharge.id.in_(ids))
         return list(self.db.scalars(stmt).all())

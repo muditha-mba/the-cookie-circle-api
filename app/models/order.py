@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
@@ -122,6 +122,18 @@ class Order(Base, TimestampMixin):
         server_default="0",
     )
     total_revenue_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    total_tax_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=Decimal("0"),
+        server_default="0",
+    )
+    tax_lines_snapshot: Mapped[list] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default="'[]'",
+    )
     total_cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     total_profit_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     margin_percentage_snapshot: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)

@@ -26,6 +26,7 @@ from app.services.analytics.analytics_product_service import AnalyticsProductSer
 from app.services.analytics.analytics_production_service import AnalyticsProductionService
 from app.services.analytics.analytics_production_ux_service import AnalyticsProductionUxService
 from app.services.analytics.analytics_revenue_service import AnalyticsRevenueService
+from app.services.overhead_analytics_service import OverheadAnalyticsService
 from app.services.customer_communication_service import CustomerCommunicationService
 from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
@@ -261,6 +262,12 @@ def get_analytics_export_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> AnalyticsExportService:
     return AnalyticsExportService(db)
+
+
+def get_overhead_analytics_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> OverheadAnalyticsService:
+    return OverheadAnalyticsService(db)
 
 
 def get_faq_service(

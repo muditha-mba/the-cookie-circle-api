@@ -9,26 +9,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 from app.models.base import TimestampMixin
-from app.models.product_associations import (
-    product_labour_charges,
-    product_tax_charges,
-    product_utility_charges,
-)
 
 if TYPE_CHECKING:
-    from app.models.labour_charge import LabourCharge
     from app.models.product_category import ProductCategory
     from app.models.product_recipe_line import ProductRecipeLine
-    from app.models.tax_charge import TaxCharge
-    from app.models.utility_charge import UtilityCharge
 
 
 class Product(Base, TimestampMixin):
-    """Sellable product with recipe-based costing.
-
-    Future: global charges may gain ``applicability`` (PRODUCT | COLLECTION | BOTH)
-    to filter which charges can attach at product vs collection level.
-    """
+    """Sellable product with recipe-based costing."""
 
     __tablename__ = "products"
 
@@ -64,16 +52,4 @@ class Product(Base, TimestampMixin):
         back_populates="product",
         cascade="all, delete-orphan",
         order_by="ProductRecipeLine.created_at",
-    )
-    utility_charges: Mapped[list["UtilityCharge"]] = relationship(
-        "UtilityCharge",
-        secondary=product_utility_charges,
-    )
-    labour_charges: Mapped[list["LabourCharge"]] = relationship(
-        "LabourCharge",
-        secondary=product_labour_charges,
-    )
-    tax_charges: Mapped[list["TaxCharge"]] = relationship(
-        "TaxCharge",
-        secondary=product_tax_charges,
     )

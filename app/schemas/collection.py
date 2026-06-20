@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.pagination import PaginationParams
 from app.schemas.collection_package import CollectionPackageResponse
-from app.schemas.product import AttachedChargeSummary
 
 
 class ProductCategorySummary(BaseModel):
@@ -58,9 +57,6 @@ class CollectionCreate(CollectionBase):
     """Create package configuration."""
 
     item_lines: list[CollectionItemLineInput] = Field(default_factory=list)
-    utility_charge_ids: list[UUID] = Field(default_factory=list)
-    labour_charge_ids: list[UUID] = Field(default_factory=list)
-    tax_charge_ids: list[UUID] = Field(default_factory=list)
 
 
 class CollectionUpdate(BaseModel):
@@ -75,9 +71,6 @@ class CollectionUpdate(BaseModel):
     is_public: bool | None = None
     allowed_category_ids: list[UUID] | None = Field(default=None, min_length=1)
     item_lines: list[CollectionItemLineInput] | None = None
-    utility_charge_ids: list[UUID] | None = None
-    labour_charge_ids: list[UUID] | None = None
-    tax_charge_ids: list[UUID] | None = None
 
     @field_validator("name")
     @classmethod
@@ -108,7 +101,4 @@ class CollectionDetailResponse(CollectionSummaryResponse):
 
     allowed_categories: list[ProductCategorySummary]
     item_lines: list[CollectionItemLineResponse]
-    utility_charges: list[AttachedChargeSummary]
-    labour_charges: list[AttachedChargeSummary]
-    tax_charges: list[AttachedChargeSummary]
     package: CollectionPackageResponse

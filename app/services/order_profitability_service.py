@@ -6,14 +6,17 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.enums import ChargeType
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.collection import Collection
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.models.order_product_line import OrderProductLine
 from app.models.product import Product
+from app.models.tax_charge import TaxCharge
 from app.repositories.collection_repository import CollectionRepository
 from app.repositories.order_repository import OrderRepository
 from app.repositories.product_repository import ProductRepository
@@ -22,6 +25,7 @@ from app.schemas.order_profitability import (
     OrderFinancialSnapshot,
     ProfitableCollectionSoldRow,
     ProfitableProductSoldRow,
+    TaxLineSnapshot,
     TopProfitableOrderRow,
 )
 from app.services.collection_selection_validator import CollectionSelectionValidator
@@ -113,7 +117,14 @@ class OrderProfitabilityService:
 
         delivery = _money(delivery_fee)
         delivery_cost = resolve_delivery_cost(delivery, is_pickup=is_pickup)
-        total_revenue = _money(products_subtotal + collections_subtotal + delivery)
+
+        # Tax is calculated on the order subtotal (products + collections) only —
+        # delivery is excluded from the taxable base.
+        taxable_subtotal = _money(products_subtotal + collections_subtotal)
+        tax_lines, total_tax = self._calculate_order_taxes(taxable_subtotal)
+
+        # Revenue = subtotal + delivery + tax (tax is collected from the customer)
+        total_revenue = _money(products_subtotal + collections_subtotal + delivery + total_tax)
         total_cost = _money(
             products_cost + collections_cost + delivery_cost + packaging_cost,
         )
@@ -133,6 +144,8 @@ class OrderProfitabilityService:
             packaging_cost_snapshot=packaging_cost,
             products_cost_snapshot=products_cost,
             collections_cost_snapshot=collections_cost,
+            total_tax_snapshot=total_tax,
+            tax_lines_snapshot=tax_lines,
             total_revenue_snapshot=total_revenue,
             total_cost_snapshot=total_cost,
             total_profit_snapshot=total_profit,
@@ -152,6 +165,8 @@ class OrderProfitabilityService:
         order.delivery_cost_snapshot = result.financials.delivery_cost_snapshot
         order.package_fee_revenue_snapshot = result.financials.package_fee_revenue_snapshot
         order.packaging_cost_snapshot = result.financials.packaging_cost_snapshot
+        order.total_tax_snapshot = result.financials.total_tax_snapshot
+        order.tax_lines_snapshot = [t.model_dump() for t in result.financials.tax_lines_snapshot]
         order.total_revenue_snapshot = result.financials.total_revenue_snapshot
         order.total_cost_snapshot = result.financials.total_cost_snapshot
         order.total_profit_snapshot = result.financials.total_profit_snapshot
@@ -172,7 +187,8 @@ class OrderProfitabilityService:
         fulfillment_cost = _money(order.delivery_cost_snapshot + packaging_cost)
         cookie_cost = _money(order.total_cost_snapshot - fulfillment_cost)
         total_cost = _money(cookie_cost + delivery_cost + packaging_cost)
-        total_revenue = _money(products + collections + delivery)
+        total_tax = _money(order.total_tax_snapshot)
+        total_revenue = _money(products + collections + delivery + total_tax)
         total_profit = _money(total_revenue - total_cost)
 
         order.delivery_fee_snapshot = delivery
@@ -203,6 +219,7 @@ class OrderProfitabilityService:
                 Decimal("0"),
             ),
         )
+        tax_lines = [TaxLineSnapshot(**t) for t in (order.tax_lines_snapshot or [])]
         return OrderFinancialSnapshot(
             products_subtotal_snapshot=order.products_subtotal_snapshot,
             collections_subtotal_snapshot=order.collections_subtotal_snapshot,
@@ -212,11 +229,44 @@ class OrderProfitabilityService:
             packaging_cost_snapshot=order.packaging_cost_snapshot,
             products_cost_snapshot=products_cost,
             collections_cost_snapshot=collections_cost,
+            total_tax_snapshot=order.total_tax_snapshot,
+            tax_lines_snapshot=tax_lines,
             total_revenue_snapshot=order.total_revenue_snapshot,
             total_cost_snapshot=order.total_cost_snapshot,
             total_profit_snapshot=order.total_profit_snapshot,
             margin_percentage_snapshot=order.margin_percentage_snapshot,
         )
+
+    def _calculate_order_taxes(
+        self,
+        taxable_subtotal: Decimal,
+    ) -> tuple[list[TaxLineSnapshot], Decimal]:
+        """Fetch all active tax charges and calculate applied amounts."""
+        stmt = select(TaxCharge).where(TaxCharge.is_active == True)  # noqa: E712
+        active_taxes = list(self.db.scalars(stmt).all())
+
+        if not active_taxes:
+            return [], Decimal("0.00")
+
+        tax_lines: list[TaxLineSnapshot] = []
+        for tax in active_taxes:
+            if tax.charge_type == ChargeType.PERCENTAGE:
+                applied = _money((taxable_subtotal * tax.amount) / Decimal("100"))
+            else:
+                applied = _money(tax.amount)
+
+            tax_lines.append(
+                TaxLineSnapshot(
+                    tax_id=str(tax.id),
+                    name=tax.name,
+                    charge_type=tax.charge_type.value,
+                    configured_amount=tax.amount,
+                    applied_amount=applied,
+                )
+            )
+
+        total_tax = _money(sum((t.applied_amount for t in tax_lines), Decimal("0")))
+        return tax_lines, total_tax
 
     def get_top_profitable_orders(self, *, limit: int = 10) -> list[TopProfitableOrderRow]:
         orders = self.orders.fetch_top_profitable_orders(limit=limit)

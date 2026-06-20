@@ -37,9 +37,6 @@ class ProductCreate(ProductBase):
     """Create product request."""
 
     recipe_lines: list[RecipeLineInput] = Field(default_factory=list)
-    utility_charge_ids: list[UUID] = Field(default_factory=list)
-    labour_charge_ids: list[UUID] = Field(default_factory=list)
-    tax_charge_ids: list[UUID] = Field(default_factory=list)
 
 
 class ProductUpdate(BaseModel):
@@ -55,9 +52,6 @@ class ProductUpdate(BaseModel):
     is_active: bool | None = None
     is_public: bool | None = None
     recipe_lines: list[RecipeLineInput] | None = None
-    utility_charge_ids: list[UUID] | None = None
-    labour_charge_ids: list[UUID] | None = None
-    tax_charge_ids: list[UUID] | None = None
 
     @field_validator("name")
     @classmethod
@@ -74,9 +68,6 @@ class ProductCostPreviewRequest(BaseModel):
     buffer_amount: Decimal = Field(default=Decimal("0"), ge=0)
     yield_quantity: Decimal = Field(gt=0)
     recipe_lines: list[RecipeLineInput] = Field(default_factory=list)
-    utility_charge_ids: list[UUID] = Field(default_factory=list)
-    labour_charge_ids: list[UUID] = Field(default_factory=list)
-    tax_charge_ids: list[UUID] = Field(default_factory=list)
 
 
 class ProductSummaryResponse(ProductBase):
@@ -103,16 +94,6 @@ class RecipeLineResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ChargeBreakdownLine(BaseModel):
-    """Applied global charge in a product breakdown."""
-
-    id: UUID
-    name: str
-    charge_type: str
-    configured_amount: Decimal
-    applied_cost: Decimal
-
-
 class IngredientBreakdown(BaseModel):
     """Ingredient cost section."""
 
@@ -120,20 +101,10 @@ class IngredientBreakdown(BaseModel):
     subtotal: Decimal
 
 
-class AdditionalChargesBreakdown(BaseModel):
-    """Additional charges grouped by category."""
-
-    utility_charges: list[ChargeBreakdownLine]
-    labour_charges: list[ChargeBreakdownLine]
-    tax_charges: list[ChargeBreakdownLine]
-    subtotal: Decimal
-
-
 class ProductCostBreakdown(BaseModel):
-    """Full product cost and profitability breakdown."""
+    """Full product cost and profitability breakdown (ingredients + buffer only)."""
 
     ingredients: IngredientBreakdown
-    additional_charges: AdditionalChargesBreakdown
     buffer_amount: Decimal
     total_cost: Decimal
     selling_price: Decimal
@@ -143,22 +114,8 @@ class ProductCostBreakdown(BaseModel):
     profit_per_unit: Decimal
 
 
-class AttachedChargeSummary(BaseModel):
-    """Reference to an attached global charge."""
-
-    id: UUID
-    name: str
-    charge_type: str
-    amount: Decimal
-    applicability: str
-    is_active: bool
-
-
 class ProductDetailResponse(ProductSummaryResponse):
-    """Product detail with recipe, charges, and breakdown."""
+    """Product detail with recipe and breakdown."""
 
     recipe_lines: list[RecipeLineResponse]
-    utility_charges: list[AttachedChargeSummary]
-    labour_charges: list[AttachedChargeSummary]
-    tax_charges: list[AttachedChargeSummary]
     cost_breakdown: ProductCostBreakdown | None = None
