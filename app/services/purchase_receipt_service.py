@@ -16,6 +16,7 @@ from app.core.enums import (
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.inventory_lot import InventoryLot
 from app.models.purchase_receipt import PurchaseReceipt
+from app.models.purchase_receipt_attachment import PurchaseReceiptAttachment
 from app.models.purchase_receipt_line import PurchaseReceiptLine
 from app.repositories.product_item_repository import ProductItemRepository
 from app.repositories.purchase_receipt_repository import PurchaseReceiptRepository
@@ -24,6 +25,8 @@ from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.purchase_receipt import (
     BillUploadUrlRequest,
     BillUploadUrlResponse,
+    PurchaseReceiptAttachmentRegister,
+    PurchaseReceiptAttachmentResponse,
     PurchaseReceiptCreate,
     PurchaseReceiptLineCreate,
     PurchaseReceiptLineResponse,
@@ -40,6 +43,9 @@ from app.services.storage.purchase_receipt_storage_service import (
 
 MONEY_PRECISION = Decimal("0.01")
 QTY_PRECISION = Decimal("0.0001")
+UNIT_COST_PRECISION = Decimal("0.0001")
+MAX_ATTACHMENTS_PER_RECEIPT = 10
+_IMAGE_EXTENSIONS = frozenset({"jpg", "png", "webp"})
 
 
 class PurchaseReceiptService:
@@ -173,6 +179,8 @@ class PurchaseReceiptService:
             raise ValidationError("Only draft receipts can be deleted")
         if receipt.bill_asset_id and receipt.bill_extension:
             self.storage.delete_asset(receipt.bill_asset_id, receipt.bill_extension)
+        for attachment in receipt.attachments:
+            self.storage.delete_asset(attachment.asset_id, attachment.extension)
         label = self._receipt_label(receipt)
         self.receipts.delete(receipt)
         self.db.commit()
@@ -208,7 +216,7 @@ class PurchaseReceiptService:
             lot = InventoryLot(
                 product_item_id=line.product_item_id,
                 lot_code=lot_code,
-                quantity_on_hand=line.quantity.quantize(QTY_PRECISION),
+                quantity_on_hand=Decimal("0"),
                 unit=line.unit,
                 expires_at=line.expires_at,
                 received_at=now,
@@ -245,11 +253,19 @@ class PurchaseReceiptService:
         receipt_id: uuid.UUID,
         payload: BillUploadUrlRequest,
     ) -> BillUploadUrlResponse:
-        receipt = self.receipts.get_by_id(receipt_id)
-        if not receipt:
-            raise NotFoundError("Purchase receipt not found")
-        if receipt.status != PurchaseReceiptStatus.DRAFT:
-            raise ValidationError("Bills can only be uploaded on draft receipts")
+        """Legacy single-bill upload URL — prefer attachment upload endpoints."""
+        return self.create_attachment_upload_url(receipt_id, payload)
+
+    def create_attachment_upload_url(
+        self,
+        receipt_id: uuid.UUID,
+        payload: BillUploadUrlRequest,
+    ) -> BillUploadUrlResponse:
+        receipt = self._get_receipt(receipt_id)
+        if len(receipt.attachments) >= MAX_ATTACHMENTS_PER_RECEIPT:
+            raise ValidationError(
+                f"A receipt can have at most {MAX_ATTACHMENTS_PER_RECEIPT} attachments.",
+            )
 
         asset_id = uuid.uuid4()
         result = self.storage.create_presigned_upload(
@@ -263,13 +279,162 @@ class PurchaseReceiptService:
             expires_in=int(result["expires_in"]),
         )
 
+    def upload_attachment(
+        self,
+        receipt_id: uuid.UUID,
+        *,
+        file_bytes: bytes,
+        content_type: str,
+        file_name: str | None,
+        user_id: uuid.UUID,
+    ) -> PurchaseReceiptAttachmentResponse:
+        """Upload a receipt file through the API (avoids browser-to-S3 CORS)."""
+        receipt = self._get_receipt(receipt_id)
+        if len(receipt.attachments) >= MAX_ATTACHMENTS_PER_RECEIPT:
+            raise ValidationError(
+                f"A receipt can have at most {MAX_ATTACHMENTS_PER_RECEIPT} attachments.",
+            )
+        if not file_bytes:
+            raise ValidationError("Uploaded file is empty.")
+
+        normalized_type = content_type.split(";", 1)[0].strip().lower()
+        extension = self.storage.extension_for_content_type(normalized_type)
+        asset_id = uuid.uuid4()
+        self.storage.upload_object(
+            asset_id=asset_id,
+            extension=extension,
+            body=file_bytes,
+            content_type=normalized_type,
+        )
+        return self.register_attachment(
+            receipt_id,
+            PurchaseReceiptAttachmentRegister(
+                asset_id=asset_id,
+                content_type=normalized_type,
+                extension=extension,
+                file_name=file_name,
+            ),
+            user_id=user_id,
+        )
+
+    def register_attachment(
+        self,
+        receipt_id: uuid.UUID,
+        payload: PurchaseReceiptAttachmentRegister,
+        *,
+        user_id: uuid.UUID,
+    ) -> PurchaseReceiptAttachmentResponse:
+        receipt = self._get_receipt(receipt_id)
+        if len(receipt.attachments) >= MAX_ATTACHMENTS_PER_RECEIPT:
+            raise ValidationError(
+                f"A receipt can have at most {MAX_ATTACHMENTS_PER_RECEIPT} attachments.",
+            )
+
+        extension = payload.extension.strip().lower().removeprefix(".")
+        expected = self.storage.extension_for_content_type(payload.content_type)
+        if extension != expected:
+            raise ValidationError("Attachment extension does not match content type.")
+
+        attachment = PurchaseReceiptAttachment(
+            purchase_receipt_id=receipt.id,
+            asset_id=payload.asset_id,
+            content_type=payload.content_type.split(";", 1)[0].strip().lower(),
+            extension=extension,
+            file_name=payload.file_name,
+            sort_order=len(receipt.attachments),
+        )
+        self.db.add(attachment)
+        self.db.commit()
+        self.db.refresh(attachment)
+        self.activity.record(
+            action=ActivityAction.UPDATED,
+            resource_type=ActivityResourceType.PURCHASE_RECEIPT,
+            actor_user_id=user_id,
+            resource_id=receipt.id,
+            resource_label=f"Attached file to {self._receipt_label(receipt)}",
+            commit=True,
+        )
+        return self._to_attachment_response(attachment)
+
+    def delete_attachment(
+        self,
+        receipt_id: uuid.UUID,
+        attachment_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID,
+    ) -> None:
+        receipt = self._get_draft_receipt(receipt_id)
+        attachment = next((row for row in receipt.attachments if row.id == attachment_id), None)
+        if not attachment:
+            raise NotFoundError("Attachment not found")
+        self.storage.delete_asset(attachment.asset_id, attachment.extension)
+        self.db.delete(attachment)
+        self.db.commit()
+        self.activity.record(
+            action=ActivityAction.UPDATED,
+            resource_type=ActivityResourceType.PURCHASE_RECEIPT,
+            actor_user_id=user_id,
+            resource_id=receipt.id,
+            resource_label=f"Removed attachment from {self._receipt_label(receipt)}",
+            commit=True,
+        )
+
+    def get_attachment_bytes(
+        self,
+        receipt_id: uuid.UUID,
+        attachment_id: uuid.UUID,
+    ) -> tuple[bytes, str]:
+        receipt = self.receipts.get_by_id(receipt_id)
+        if not receipt:
+            raise NotFoundError("Purchase receipt not found")
+        attachment = next((row for row in receipt.attachments if row.id == attachment_id), None)
+        if not attachment:
+            raise NotFoundError("Attachment not found")
+        return self.storage.get_object_bytes(attachment.asset_id, attachment.extension)
+
     def get_bill_bytes(self, receipt_id: uuid.UUID) -> tuple[bytes, str]:
         receipt = self.receipts.get_by_id(receipt_id)
         if not receipt:
             raise NotFoundError("Purchase receipt not found")
+        if receipt.attachments:
+            first = sorted(receipt.attachments, key=lambda row: row.sort_order)[0]
+            return self.storage.get_object_bytes(first.asset_id, first.extension)
         if not receipt.bill_asset_id or not receipt.bill_extension:
             raise NotFoundError("No bill attached to this receipt")
         return self.storage.get_object_bytes(receipt.bill_asset_id, receipt.bill_extension)
+
+    def _get_receipt(self, receipt_id: uuid.UUID) -> PurchaseReceipt:
+        receipt = self.receipts.get_by_id(receipt_id)
+        if not receipt:
+            raise NotFoundError("Purchase receipt not found")
+        return receipt
+
+    def _get_draft_receipt(self, receipt_id: uuid.UUID) -> PurchaseReceipt:
+        receipt = self._get_receipt(receipt_id)
+        if receipt.status != PurchaseReceiptStatus.DRAFT:
+            raise ValidationError("Only draft receipts can be changed")
+        return receipt
+
+    @staticmethod
+    def _attachment_is_image(attachment: PurchaseReceiptAttachment) -> bool:
+        if attachment.extension in _IMAGE_EXTENSIONS:
+            return True
+        return attachment.content_type.startswith("image/")
+
+    def _to_attachment_response(
+        self,
+        attachment: PurchaseReceiptAttachment,
+    ) -> PurchaseReceiptAttachmentResponse:
+        return PurchaseReceiptAttachmentResponse(
+            id=attachment.id,
+            asset_id=attachment.asset_id,
+            content_type=attachment.content_type,
+            extension=attachment.extension,
+            file_name=attachment.file_name,
+            sort_order=attachment.sort_order,
+            is_image=self._attachment_is_image(attachment),
+            created_at=attachment.created_at,
+        )
 
     def _build_lines(self, lines: list[PurchaseReceiptLineCreate]) -> list[PurchaseReceiptLine]:
         built: list[PurchaseReceiptLine] = []
@@ -277,13 +442,14 @@ class PurchaseReceiptService:
             item = self.items.get_by_id(line.product_item_id)
             if not item:
                 raise NotFoundError("Product item not found")
-            line_total = (line.quantity * line.unit_cost).quantize(MONEY_PRECISION)
+            line_total = line.line_total.quantize(MONEY_PRECISION)
+            unit_cost = (line_total / line.quantity).quantize(UNIT_COST_PRECISION)
             built.append(
                 PurchaseReceiptLine(
                     product_item_id=line.product_item_id,
                     quantity=line.quantity.quantize(QTY_PRECISION),
                     unit=line.unit,
-                    unit_cost=line.unit_cost,
+                    unit_cost=unit_cost,
                     line_total=line_total,
                     expires_at=line.expires_at,
                 ),
@@ -314,7 +480,7 @@ class PurchaseReceiptService:
             reference_number=receipt.reference_number,
             total_amount=receipt.total_amount,
             status=receipt.status,
-            has_bill=bool(receipt.bill_asset_id),
+            has_bill=bool(receipt.attachments) or bool(receipt.bill_asset_id),
             created_at=receipt.created_at,
             updated_at=receipt.updated_at,
         )
@@ -344,6 +510,10 @@ class PurchaseReceiptService:
             bill_asset_id=receipt.bill_asset_id,
             bill_content_type=receipt.bill_content_type,
             bill_extension=receipt.bill_extension,
+            attachments=[
+                self._to_attachment_response(attachment)
+                for attachment in sorted(receipt.attachments, key=lambda row: row.sort_order)
+            ],
             lines=lines,
             confirmed_at=receipt.confirmed_at,
             created_by_user_id=receipt.created_by_user_id,

@@ -47,6 +47,7 @@ from app.models.inventory_consumption_proposal_order import InventoryConsumption
 from app.models.inventory_lot import InventoryLot
 from app.models.inventory_movement import InventoryMovement
 from app.models.purchase_receipt import PurchaseReceipt
+from app.models.purchase_receipt_attachment import PurchaseReceiptAttachment
 from app.models.purchase_receipt_line import PurchaseReceiptLine
 from app.models.product_item import ProductItem
 from app.models.product_item_type import ProductItemType
@@ -85,6 +86,7 @@ __all__ = [
     "InventoryLot",
     "InventoryMovement",
     "PurchaseReceipt",
+    "PurchaseReceiptAttachment",
     "PurchaseReceiptLine",
     "DeliveryArea",
     "Order",

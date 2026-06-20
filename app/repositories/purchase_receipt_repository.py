@@ -33,6 +33,7 @@ class PurchaseReceiptRepository:
             .options(
                 joinedload(PurchaseReceipt.supplier),
                 joinedload(PurchaseReceipt.lines).joinedload(PurchaseReceiptLine.product_item),
+                joinedload(PurchaseReceipt.attachments),
             )
             .where(PurchaseReceipt.id == receipt_id)
         )
@@ -57,7 +58,10 @@ class PurchaseReceiptRepository:
         status: PurchaseReceiptStatus | None = None,
         supplier_id: uuid.UUID | None = None,
     ) -> tuple[list[PurchaseReceipt], int]:
-        stmt = select(PurchaseReceipt).options(joinedload(PurchaseReceipt.supplier))
+        stmt = select(PurchaseReceipt).options(
+            joinedload(PurchaseReceipt.supplier),
+            joinedload(PurchaseReceipt.attachments),
+        )
         count_stmt = select(func.count()).select_from(PurchaseReceipt)
 
         if status is not None:

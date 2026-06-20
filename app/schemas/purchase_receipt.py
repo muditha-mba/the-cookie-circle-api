@@ -14,7 +14,6 @@ class PurchaseReceiptLineBase(BaseModel):
     product_item_id: UUID
     quantity: Decimal = Field(gt=0)
     unit: str = Field(min_length=1, max_length=50)
-    unit_cost: Decimal = Field(ge=0)
     expires_at: date | None = None
 
     @field_validator("unit")
@@ -24,11 +23,14 @@ class PurchaseReceiptLineBase(BaseModel):
 
 
 class PurchaseReceiptLineCreate(PurchaseReceiptLineBase):
-    """Create line on draft receipt."""
+    """Line input from a supplier receipt — total paid, not per-unit cost."""
+
+    line_total: Decimal = Field(ge=0)
 
 
 class PurchaseReceiptLineResponse(PurchaseReceiptLineBase):
     id: UUID
+    unit_cost: Decimal
     line_total: Decimal
     product_item_name: str
     created_at: datetime
@@ -73,11 +75,32 @@ class PurchaseReceiptSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PurchaseReceiptAttachmentResponse(BaseModel):
+    id: UUID
+    asset_id: UUID
+    content_type: str
+    extension: str
+    file_name: str | None
+    sort_order: int
+    is_image: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PurchaseReceiptAttachmentRegister(BaseModel):
+    asset_id: UUID
+    content_type: str = Field(min_length=3, max_length=100)
+    extension: str = Field(min_length=1, max_length=20)
+    file_name: str | None = Field(default=None, max_length=255)
+
+
 class PurchaseReceiptResponse(PurchaseReceiptSummary):
     notes: str | None
     bill_asset_id: UUID | None
     bill_content_type: str | None
     bill_extension: str | None
+    attachments: list[PurchaseReceiptAttachmentResponse]
     lines: list[PurchaseReceiptLineResponse]
     confirmed_at: datetime | None
     created_by_user_id: UUID | None

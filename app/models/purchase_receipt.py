@@ -14,6 +14,7 @@ from app.models.base import TimestampMixin
 from app.models.enum_columns import purchase_receipt_status_enum
 
 if TYPE_CHECKING:
+    from app.models.purchase_receipt_attachment import PurchaseReceiptAttachment
     from app.models.purchase_receipt_line import PurchaseReceiptLine
     from app.models.supplier import Supplier
     from app.models.user import User
@@ -65,6 +66,12 @@ class PurchaseReceipt(Base, TimestampMixin):
         "PurchaseReceiptLine",
         back_populates="purchase_receipt",
         cascade="all, delete-orphan",
+    )
+    attachments: Mapped[list["PurchaseReceiptAttachment"]] = relationship(
+        "PurchaseReceiptAttachment",
+        back_populates="purchase_receipt",
+        cascade="all, delete-orphan",
+        order_by="PurchaseReceiptAttachment.sort_order",
     )
     created_by: Mapped["User | None"] = relationship("User", foreign_keys=[created_by_user_id])
     confirmed_by: Mapped["User | None"] = relationship("User", foreign_keys=[confirmed_by_user_id])

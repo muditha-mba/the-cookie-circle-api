@@ -85,6 +85,34 @@ class PurchaseReceiptStorageService:
             "expires_in": _PRESIGN_EXPIRY_SECONDS,
         }
 
+    def upload_object(
+        self,
+        *,
+        asset_id: uuid.UUID,
+        extension: str,
+        body: bytes,
+        content_type: str,
+    ) -> None:
+        if not self.enabled:
+            raise ValidationError("Bill upload is not configured. Set AWS S3 credentials.")
+        if len(body) > _MAX_BYTES:
+            raise ValidationError("Bill file exceeds maximum size (10 MB).")
+
+        object_key = self.build_object_key(asset_id, extension)
+        normalized_type = content_type.split(";", 1)[0].strip().lower()
+        client = self._get_client()
+
+        try:
+            client.put_object(
+                Bucket=self.settings.resolved_s3_bucket_name,
+                Key=object_key,
+                Body=body,
+                ContentType=normalized_type,
+            )
+        except (ClientError, BotoCoreError) as exc:
+            logger.exception("Failed to upload bill object %s", object_key)
+            raise ValidationError("Unable to store bill file.") from exc
+
     def get_object_bytes(
         self,
         asset_id: uuid.UUID,
