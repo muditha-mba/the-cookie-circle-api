@@ -281,6 +281,12 @@ class OrderPreviewResponse(BaseModel):
 
     products_subtotal_snapshot: Decimal
     collections_subtotal_snapshot: Decimal
+    pre_discount_subtotal_snapshot: Decimal = Decimal("0")
+    discount_amount_snapshot: Decimal = Decimal("0")
+    discount_type_snapshot: str | None = None
+    discount_value_snapshot: Decimal | None = None
+    discount_source_snapshot: str | None = None
+    gross_revenue_snapshot: Decimal = Decimal("0")
     delivery_fee_snapshot: Decimal
     delivery_cost_snapshot: Decimal
     package_fee_revenue_snapshot: Decimal

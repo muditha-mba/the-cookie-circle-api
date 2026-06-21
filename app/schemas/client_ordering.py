@@ -135,6 +135,7 @@ class ClientOrderPreviewRequest(BaseModel):
     requested_delivery_date: date | None = None
     collection_lines: list[ClientCollectionLineInput] = Field(default_factory=list)
     product_lines: list[ClientProductLineInput] = Field(default_factory=list)
+    customer_id: UUID | None = None  # Optional: authenticated customer for discount resolution
 
     @model_validator(mode="after")
     def validate_order_type_rules(self) -> "ClientOrderPreviewRequest":

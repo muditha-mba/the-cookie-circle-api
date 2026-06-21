@@ -9,3 +9,4 @@ class StorageAssetCategory(StrEnum):
     SHARED_MEMORIES = "shared-memories"
     REVIEWS = "reviews"
     PURCHASE_RECEIPTS = "purchase-receipts"
+    PROMOTIONS = "promotions"

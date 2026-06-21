@@ -54,6 +54,11 @@ from app.services.product_service import ProductService
 from app.services.tax_charge_service import TaxChargeService
 from app.services.activity_log_service import ActivityLogService
 from app.services.utility_charge_service import UtilityChargeService
+from app.services.customer_discount_grant_service import CustomerDiscountGrantService
+from app.services.customer_discount_override_service import CustomerDiscountOverrideService
+from app.services.discount_audit_service import DiscountAuditService
+from app.services.discount_rule_service import DiscountRuleService
+from app.services.promotion_slide_service import PromotionSlideService
 
 
 def get_current_admin_user(
@@ -94,6 +99,36 @@ def get_tax_charge_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> TaxChargeService:
     return TaxChargeService(db)
+
+
+def get_discount_rule_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> DiscountRuleService:
+    return DiscountRuleService(db)
+
+
+def get_customer_discount_grant_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerDiscountGrantService:
+    return CustomerDiscountGrantService(db)
+
+
+def get_customer_discount_override_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerDiscountOverrideService:
+    return CustomerDiscountOverrideService(db)
+
+
+def get_discount_audit_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> DiscountAuditService:
+    return DiscountAuditService(db)
+
+
+def get_promotion_slide_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> PromotionSlideService:
+    return PromotionSlideService(db)
 
 
 def get_product_service(

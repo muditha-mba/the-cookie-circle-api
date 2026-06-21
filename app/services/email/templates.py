@@ -326,14 +326,38 @@ def build_order_confirmation_email(
     total_amount: Decimal,
     whatsapp_url: str | None = None,
     premium_packaging_notice: str | None = None,
+    products_subtotal: Decimal | None = None,
+    collections_subtotal: Decimal | None = None,
+    delivery_fee: Decimal | None = None,
+    discount_amount: Decimal | None = None,
+    discount_label: str | None = None,
+    tax_lines: list[tuple[str, Decimal]] | None = None,
 ) -> EmailContent:
     safe_name = escape(first_name.strip() or "there")
+
+    # Build breakdown rows when detail is available
+    breakdown_rows: list[tuple[str, str]] = []
+    if products_subtotal is not None and products_subtotal > 0:
+        breakdown_rows.append(("Cookies", escape(_format_lkr(products_subtotal))))
+    if collections_subtotal is not None and collections_subtotal > 0:
+        breakdown_rows.append(("Packages", escape(_format_lkr(collections_subtotal))))
+    if delivery_fee is not None and delivery_fee > 0:
+        breakdown_rows.append(("Delivery", escape(_format_lkr(delivery_fee))))
+    if discount_amount is not None and discount_amount > 0:
+        label = escape(discount_label or "Discount")
+        breakdown_rows.append((label, f"<span style='color:#2d6a2d'>− {escape(_format_lkr(discount_amount))}</span>"))
+    if tax_lines:
+        for tax_label, tax_applied in tax_lines:
+            breakdown_rows.append((escape(tax_label), escape(_format_lkr(tax_applied))))
+
     details_rows = [
         ("Order number", escape(order_number)),
         ("Order type", escape(order_type_label)),
         ("Scheduled delivery", escape(_format_date(scheduled_delivery_date))),
-        ("Customer total", escape(_format_lkr(total_amount))),
     ]
+    details_rows.extend(breakdown_rows)
+    details_rows.append(("Customer total", escape(_format_lkr(total_amount))))
+
     details_html = "".join(
         f"""
         <tr>
@@ -389,17 +413,31 @@ def build_order_confirmation_email(
     premium_packaging_line = (
         f"\n{premium_packaging_notice}\n" if premium_packaging_notice else ""
     )
-    text = (
-        f"{_subject_prefix()}Your Cookie Circle order {order_number}\n\n"
-        f"Thank you, {first_name.strip() or 'there'}.\n\n"
-        f"Order number: {order_number}\n"
-        f"Order type: {order_type_label}\n"
-        f"Scheduled delivery: {_format_date(scheduled_delivery_date)}\n"
-        f"Customer total: {_format_lkr(total_amount)}\n"
-        f"{premium_packaging_line}\n"
-        f"{schedule.explanation}\n"
-        f"{whatsapp_line}"
-    )
+    text_lines = [
+        f"{_subject_prefix()}Your Cookie Circle order {order_number}\n",
+        f"Thank you, {first_name.strip() or 'there'}.\n",
+        f"Order number: {order_number}",
+        f"Order type: {order_type_label}",
+        f"Scheduled delivery: {_format_date(scheduled_delivery_date)}",
+    ]
+    if products_subtotal is not None and products_subtotal > 0:
+        text_lines.append(f"Cookies: {_format_lkr(products_subtotal)}")
+    if collections_subtotal is not None and collections_subtotal > 0:
+        text_lines.append(f"Packages: {_format_lkr(collections_subtotal)}")
+    if delivery_fee is not None and delivery_fee > 0:
+        text_lines.append(f"Delivery: {_format_lkr(delivery_fee)}")
+    if discount_amount is not None and discount_amount > 0:
+        text_lines.append(f"{discount_label or 'Discount'}: − {_format_lkr(discount_amount)}")
+    if tax_lines:
+        for tax_label, tax_applied in tax_lines:
+            text_lines.append(f"{tax_label}: {_format_lkr(tax_applied)}")
+    text_lines.extend([
+        f"Customer total: {_format_lkr(total_amount)}\n",
+        f"{premium_packaging_line}",
+        f"{schedule.explanation}",
+        f"{whatsapp_line}",
+    ])
+    text = "\n".join(text_lines)
     return EmailContent(
         subject=f"{_subject_prefix()}Your Cookie Circle order {order_number}",
         html=html,
@@ -422,6 +460,9 @@ def build_internal_order_notification_email(
     collections_subtotal: Decimal | None = None,
     package_fee_revenue: Decimal | None = None,
     delivery_fee: Decimal | None = None,
+    discount_amount: Decimal | None = None,
+    discount_label: str | None = None,
+    tax_lines: list[tuple[str, Decimal]] | None = None,
 ) -> EmailContent:
     details_rows = [
         ("Order number", escape(order_number)),
@@ -446,6 +487,12 @@ def build_internal_order_notification_email(
         )
     if delivery_fee is not None and delivery_fee > 0:
         details_rows.append(("Delivery fee", escape(_format_lkr(delivery_fee))))
+    if discount_amount is not None and discount_amount > 0:
+        label = escape(discount_label or "Discount")
+        details_rows.append((label, f"<span style='color:#2d6a2d'>− {escape(_format_lkr(discount_amount))}</span>"))
+    if tax_lines:
+        for tax_label, tax_applied in tax_lines:
+            details_rows.append((escape(tax_label), escape(_format_lkr(tax_applied))))
     details_rows.append(("Customer total", escape(_format_lkr(total_amount))))
     details_html = "".join(
         f"""
@@ -495,6 +542,11 @@ def build_internal_order_notification_email(
         text_lines.append(f"Package fee revenue: {_format_lkr(package_fee_revenue)}")
     if delivery_fee is not None and delivery_fee > 0:
         text_lines.append(f"Delivery fee: {_format_lkr(delivery_fee)}")
+    if discount_amount is not None and discount_amount > 0:
+        text_lines.append(f"{discount_label or 'Discount'}: − {_format_lkr(discount_amount)}")
+    if tax_lines:
+        for tax_label, tax_applied in tax_lines:
+            text_lines.append(f"{tax_label}: {_format_lkr(tax_applied)}")
     text_lines.extend(
         [
             f"Customer total: {_format_lkr(total_amount)}\n",

@@ -3,6 +3,11 @@
 from app.models.admin_activity_log import AdminActivityLog
 from app.models.base import TimestampMixin
 from app.models.business_setting import BusinessSetting
+from app.models.customer_discount_grant import CustomerDiscountGrant
+from app.models.customer_discount_override import CustomerDiscountOverride
+from app.models.discount_audit_event import DiscountAuditEvent
+from app.models.discount_rule import DiscountRule
+from app.models.promotion_slide import PromotionSlide
 from app.models.collection import Collection
 from app.models.collection_package import CollectionPackage
 from app.models.customer import Customer
@@ -60,7 +65,11 @@ __all__ = [
     "Customer",
     "CustomerAddress",
     "CustomerCommunication",
+    "CustomerDiscountGrant",
+    "CustomerDiscountOverride",
     "CustomerNote",
+    "DiscountAuditEvent",
+    "DiscountRule",
     "OrderReview",
     "OrderReviewItem",
     "CollectionItemLine",
@@ -94,6 +103,7 @@ __all__ = [
     "ProductRecipeLine",
     "ProductionBatch",
     "ProductionBatchPurchaseItem",
+    "PromotionSlide",
     "Supplier",
     "RefreshToken",
     "TaxCharge",

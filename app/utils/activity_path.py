@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from app.core.enums import ActivityAction, ActivityResourceType
 
 _RESOURCE_BY_SEGMENT: dict[str, ActivityResourceType] = {
+    "discount-rules": ActivityResourceType.DISCOUNT_RULE,
+    "promotion-slides": ActivityResourceType.PROMOTION_SLIDE,
+    "discounts": ActivityResourceType.CUSTOMER_DISCOUNT_GRANT,
     "orders": ActivityResourceType.ORDER,
     "products": ActivityResourceType.PRODUCT,
     "customers": ActivityResourceType.CUSTOMER,
@@ -51,6 +54,9 @@ _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
     ActivityResourceType.UTILITY_CHARGE: "Utility charge",
     ActivityResourceType.LABOUR_CHARGE: "Labour charge",
     ActivityResourceType.TAX_CHARGE: "Tax charge",
+    ActivityResourceType.DISCOUNT_RULE: "Discount rule",
+    ActivityResourceType.CUSTOMER_DISCOUNT_GRANT: "Customer discount grant",
+    ActivityResourceType.PROMOTION_SLIDE: "Promotion slide",
     ActivityResourceType.BUSINESS_SETTINGS: "Business settings",
     ActivityResourceType.FAQ: "FAQ",
     ActivityResourceType.FAQ_CATEGORY: "FAQ category",

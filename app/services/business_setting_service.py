@@ -46,6 +46,7 @@ class BusinessSettingService:
         keys.COD_ENABLED: "true",
         keys.SHARED_MEMORIES_ENABLED: "false",
         keys.FAQS_ENABLED: "true",
+        keys.DISCOUNTS_ENABLED: "false",
     }
 
     def __init__(self, db: Session) -> None:
@@ -79,6 +80,8 @@ class BusinessSettingService:
             current[keys.BANK_TRANSFER_ENABLED] = str(payload.bank_transfer_enabled).lower()
         if payload.cod_enabled is not None:
             current[keys.COD_ENABLED] = str(payload.cod_enabled).lower()
+        if payload.discounts_enabled is not None:
+            current[keys.DISCOUNTS_ENABLED] = str(payload.discounts_enabled).lower()
 
         for key, value in current.items():
             if key in keys.ALL_KEYS:
@@ -232,4 +235,5 @@ class BusinessSettingService:
             stripe_enabled=data[keys.STRIPE_ENABLED].lower() == "true",
             bank_transfer_enabled=data[keys.BANK_TRANSFER_ENABLED].lower() == "true",
             cod_enabled=data[keys.COD_ENABLED].lower() == "true",
+            discounts_enabled=data.get(keys.DISCOUNTS_ENABLED, "false").lower() == "true",
         )

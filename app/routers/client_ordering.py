@@ -1,5 +1,6 @@
 """Public client ordering routes (no authentication required)."""
 
+import uuid
 from dataclasses import asdict
 from typing import Annotated
 
@@ -9,6 +10,7 @@ from app.dependencies.client import (
     get_customer_catalog_service,
     get_customer_checkout_service,
 )
+from app.dependencies.client_account import get_optional_current_customer_id
 from app.core.enums import PaymentMethod
 from app.schemas.business_settings import BusinessSettingsResponse
 from app.schemas.client_ordering import (
@@ -170,9 +172,10 @@ def quote_collection_price(
 def preview_client_order(
     payload: ClientOrderPreviewRequest,
     service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
+    customer_id: Annotated[uuid.UUID | None, Depends(get_optional_current_customer_id)] = None,
 ) -> ClientOrderPreviewResponse:
     """Preview pricing and assigned delivery date before checkout."""
-    return service.preview(payload)
+    return service.preview(payload, customer_id=customer_id)
 
 
 @router.post(

@@ -38,6 +38,12 @@ class EmailService(ABC):
         total_amount: Decimal,
         whatsapp_url: str | None = None,
         premium_packaging_notice: str | None = None,
+        products_subtotal: Decimal | None = None,
+        collections_subtotal: Decimal | None = None,
+        delivery_fee: Decimal | None = None,
+        discount_amount: Decimal | None = None,
+        discount_label: str | None = None,
+        tax_lines: list[tuple[str, Decimal]] | None = None,
     ) -> None:
         """Send an order confirmation email after checkout."""
 
@@ -59,5 +65,8 @@ class EmailService(ABC):
         collections_subtotal: Decimal | None = None,
         package_fee_revenue: Decimal | None = None,
         delivery_fee: Decimal | None = None,
+        discount_amount: Decimal | None = None,
+        discount_label: str | None = None,
+        tax_lines: list[tuple[str, Decimal]] | None = None,
     ) -> None:
         """Notify the business inbox that a new order was created."""

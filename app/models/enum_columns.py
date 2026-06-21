@@ -10,6 +10,11 @@ from app.core.enums import (
     CollectionSelectionMode,
     CommunicationType,
     CustomerSource,
+    DiscountAuditEventType,
+    DiscountGrantStatus,
+    DiscountRuleType,
+    DiscountSource,
+    DiscountType,
     InventoryMovementReferenceType,
     InventoryMovementType,
     MarketingSource,
@@ -154,5 +159,35 @@ consumption_demand_type_enum = Enum(
 review_item_sentiment_enum = Enum(
     ReviewItemSentiment,
     name="review_item_sentiment",
+    values_callable=_enum_values,
+)
+
+discount_type_enum = Enum(
+    DiscountType,
+    name="discount_type",
+    values_callable=_enum_values,
+)
+
+discount_rule_type_enum = Enum(
+    DiscountRuleType,
+    name="discount_rule_type",
+    values_callable=_enum_values,
+)
+
+discount_grant_status_enum = Enum(
+    DiscountGrantStatus,
+    name="discount_grant_status",
+    values_callable=_enum_values,
+)
+
+discount_source_enum = Enum(
+    DiscountSource,
+    name="discount_source",
+    values_callable=_enum_values,
+)
+
+discount_audit_event_type_enum = Enum(
+    DiscountAuditEventType,
+    name="discount_audit_event_type",
     values_callable=_enum_values,
 )

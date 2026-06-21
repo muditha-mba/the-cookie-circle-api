@@ -9,9 +9,10 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.enums import ChargeType
+from app.core.enums import ChargeType, DiscountType
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.collection import Collection
+from app.models.customer_discount_grant import CustomerDiscountGrant
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.models.order_product_line import OrderProductLine
@@ -68,6 +69,7 @@ class OrderProfitabilityService:
         collection_lines: list[OrderCollectionLineInput],
         delivery_fee: Decimal,
         is_pickup: bool = False,
+        discount_grant: CustomerDiscountGrant | None = None,
     ) -> OrderSnapshotBuildResult:
         if not product_lines and not collection_lines:
             raise ValidationError("At least one product or collection line is required")
@@ -118,13 +120,38 @@ class OrderProfitabilityService:
         delivery = _money(delivery_fee)
         delivery_cost = resolve_delivery_cost(delivery, is_pickup=is_pickup)
 
-        # Tax is calculated on the order subtotal (products + collections) only —
-        # delivery is excluded from the taxable base.
-        taxable_subtotal = _money(products_subtotal + collections_subtotal)
-        tax_lines, total_tax = self._calculate_order_taxes(taxable_subtotal)
+        # Pre-discount subtotal (products + collections)
+        pre_discount_subtotal = _money(products_subtotal + collections_subtotal)
 
-        # Revenue = subtotal + delivery + tax (tax is collected from the customer)
-        total_revenue = _money(products_subtotal + collections_subtotal + delivery + total_tax)
+        # Apply discount if a valid grant is provided
+        discount_amount = Decimal("0")
+        discount_type_str: str | None = None
+        discount_value_snapshot: Decimal | None = None
+        discount_source_str: str | None = None
+
+        if discount_grant is not None:
+            if discount_grant.discount_type == DiscountType.PERCENTAGE:
+                raw = (pre_discount_subtotal * discount_grant.discount_value) / Decimal("100")
+                discount_amount = _money(min(raw, pre_discount_subtotal))
+            else:
+                discount_amount = _money(min(discount_grant.discount_value, pre_discount_subtotal))
+            discount_type_str = discount_grant.discount_type.value
+            discount_value_snapshot = discount_grant.discount_value
+            discount_source_str = discount_grant.source.value
+
+        # Post-discount subtotal for tax calculation
+        post_discount_subtotal = _money(pre_discount_subtotal - discount_amount)
+
+        # Tax is calculated on post-discount subtotal — delivery excluded
+        tax_lines, total_tax = self._calculate_order_taxes(post_discount_subtotal)
+
+        # Net revenue = post-discount subtotal + delivery + tax
+        total_revenue = _money(post_discount_subtotal + delivery + total_tax)
+
+        # Gross revenue = pre-discount subtotal + delivery + tax (tax before discount adjustment)
+        gross_tax_lines, gross_total_tax = self._calculate_order_taxes(pre_discount_subtotal)
+        gross_revenue = _money(pre_discount_subtotal + delivery + gross_total_tax)
+
         total_cost = _money(
             products_cost + collections_cost + delivery_cost + packaging_cost,
         )
@@ -138,6 +165,12 @@ class OrderProfitabilityService:
         financials = OrderFinancialSnapshot(
             products_subtotal_snapshot=products_subtotal,
             collections_subtotal_snapshot=collections_subtotal,
+            pre_discount_subtotal_snapshot=pre_discount_subtotal,
+            discount_amount_snapshot=discount_amount,
+            discount_type_snapshot=discount_type_str,
+            discount_value_snapshot=discount_value_snapshot,
+            discount_source_snapshot=discount_source_str,
+            gross_revenue_snapshot=gross_revenue,
             delivery_fee_snapshot=delivery,
             delivery_cost_snapshot=delivery_cost,
             package_fee_revenue_snapshot=package_fee_revenue,
@@ -161,6 +194,12 @@ class OrderProfitabilityService:
     def apply_snapshots_to_order(self, order: Order, result: OrderSnapshotBuildResult) -> None:
         order.products_subtotal_snapshot = result.financials.products_subtotal_snapshot
         order.collections_subtotal_snapshot = result.financials.collections_subtotal_snapshot
+        order.pre_discount_subtotal_snapshot = result.financials.pre_discount_subtotal_snapshot
+        order.discount_amount_snapshot = result.financials.discount_amount_snapshot
+        order.discount_type_snapshot = result.financials.discount_type_snapshot
+        order.discount_value_snapshot = result.financials.discount_value_snapshot
+        order.discount_source_snapshot = result.financials.discount_source_snapshot
+        order.gross_revenue_snapshot = result.financials.gross_revenue_snapshot
         order.delivery_fee_snapshot = result.financials.delivery_fee_snapshot
         order.delivery_cost_snapshot = result.financials.delivery_cost_snapshot
         order.package_fee_revenue_snapshot = result.financials.package_fee_revenue_snapshot
@@ -183,17 +222,23 @@ class OrderProfitabilityService:
         delivery_cost = resolve_delivery_cost(delivery, is_pickup=is_pickup)
         products = _money(order.products_subtotal_snapshot)
         collections = _money(order.collections_subtotal_snapshot)
+        discount_amount = _money(order.discount_amount_snapshot or Decimal("0"))
         packaging_cost = _money(order.packaging_cost_snapshot)
         fulfillment_cost = _money(order.delivery_cost_snapshot + packaging_cost)
         cookie_cost = _money(order.total_cost_snapshot - fulfillment_cost)
         total_cost = _money(cookie_cost + delivery_cost + packaging_cost)
         total_tax = _money(order.total_tax_snapshot)
-        total_revenue = _money(products + collections + delivery + total_tax)
+        # Net revenue respects the existing discount
+        post_discount_subtotal = _money(products + collections - discount_amount)
+        total_revenue = _money(post_discount_subtotal + delivery + total_tax)
+        gross_tax = _money(order.gross_revenue_snapshot - _money(order.pre_discount_subtotal_snapshot or (products + collections)) - _money(order.delivery_fee_snapshot or Decimal("0")))
+        gross_revenue = _money(_money(order.pre_discount_subtotal_snapshot or (products + collections)) + delivery + gross_tax)
         total_profit = _money(total_revenue - total_cost)
 
         order.delivery_fee_snapshot = delivery
         order.delivery_cost_snapshot = delivery_cost
         order.total_revenue_snapshot = total_revenue
+        order.gross_revenue_snapshot = gross_revenue
         order.total_cost_snapshot = total_cost
         order.total_profit_snapshot = total_profit
         order.margin_percentage_snapshot = (
@@ -220,9 +265,25 @@ class OrderProfitabilityService:
             ),
         )
         tax_lines = [TaxLineSnapshot(**t) for t in (order.tax_lines_snapshot or [])]
+        pre_discount = _money(
+            order.pre_discount_subtotal_snapshot
+            if order.pre_discount_subtotal_snapshot
+            else (order.products_subtotal_snapshot + order.collections_subtotal_snapshot)
+        )
+        gross_rev = _money(
+            order.gross_revenue_snapshot
+            if order.gross_revenue_snapshot
+            else order.total_revenue_snapshot
+        )
         return OrderFinancialSnapshot(
             products_subtotal_snapshot=order.products_subtotal_snapshot,
             collections_subtotal_snapshot=order.collections_subtotal_snapshot,
+            pre_discount_subtotal_snapshot=pre_discount,
+            discount_amount_snapshot=_money(order.discount_amount_snapshot or Decimal("0")),
+            discount_type_snapshot=order.discount_type_snapshot,
+            discount_value_snapshot=order.discount_value_snapshot,
+            discount_source_snapshot=order.discount_source_snapshot,
+            gross_revenue_snapshot=gross_rev,
             delivery_fee_snapshot=order.delivery_fee_snapshot,
             delivery_cost_snapshot=order.delivery_cost_snapshot,
             package_fee_revenue_snapshot=order.package_fee_revenue_snapshot,

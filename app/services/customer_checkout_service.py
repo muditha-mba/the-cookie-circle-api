@@ -63,6 +63,9 @@ from app.services.customer_delivery_date_service import (
 from app.services.delivery_fee_service import is_pickup_delivery_area, resolve_delivery_fee
 from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
+from app.services.discount_application_service import DiscountApplicationService
+from app.services.discount_rule_evaluator import DiscountRuleEvaluator
+from app.utils.discount_format import format_discount_label
 from app.utils.email import normalize_email
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
@@ -138,16 +141,29 @@ class CustomerCheckoutService:
         unit_price = calculate_package_selling_price(collection, per_pack)
         return ClientCollectionQuoteResponse(unit_price=unit_price)
 
-    def preview(self, payload: ClientOrderPreviewRequest) -> ClientOrderPreviewResponse:
+    def preview(
+        self,
+        payload: ClientOrderPreviewRequest,
+        *,
+        customer_id: uuid.UUID | None = None,
+    ) -> ClientOrderPreviewResponse:
         validated = self._validate_request(payload)
         settings = self.settings.get_settings()
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
+
+        # Resolve discount for authenticated customers on preview (server-side only).
+        discount_grant = None
+        if customer_id is not None:
+            discount_app = DiscountApplicationService(self.db)
+            discount_grant = discount_app.resolve_grant_for_customer(customer_id)
+
         snapshot_result = self._build_snapshots(
             payload,
             validated,
             delivery_fee,
             is_pickup=is_pickup_delivery_area(delivery_area),
+            discount_grant=discount_grant,
         )
 
         explanation = (
@@ -195,14 +211,20 @@ class CustomerCheckoutService:
         self._validate_payment_method(settings, payload.payment_method)
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
+
+        # Resolve and lock the discount grant server-side (never trust client data)
+        customer = self._resolve_customer(payload)
+        discount_app = DiscountApplicationService(self.db)
+        discount_grant = discount_app.resolve_grant_for_customer(customer.id)
+
         snapshot_result = self._build_snapshots(
             payload,
             validated,
             delivery_fee,
             is_pickup=is_pickup_delivery_area(delivery_area),
+            discount_grant=discount_grant,
         )
 
-        customer = self._resolve_customer(payload)
         CustomerAttributionService.apply_first_touch(customer, payload.attribution)
         shipping = payload.customer.shipping_address
         billing = (
@@ -243,6 +265,12 @@ class CustomerCheckoutService:
             billing_landmark=billing.landmark,
         )
         self.profitability.apply_snapshots_to_order(order, snapshot_result)
+
+        # Link the grant on the order snapshot
+        if discount_grant is not None:
+            order.customer_discount_grant_id_snapshot = discount_grant.id
+            order.discount_rule_id_snapshot = discount_grant.discount_rule_id
+
         order.collection_lines = snapshot_result.collection_lines
         order.product_lines = snapshot_result.product_lines
         order.status_events = [OrderStatusEvent(status=OrderStatus.PENDING)]
@@ -251,6 +279,10 @@ class CustomerCheckoutService:
 
         self.orders.create(order)
         self.db.flush()
+
+        # Mark grant used atomically within the same transaction
+        if discount_grant is not None:
+            discount_app.mark_grant_used(discount_grant, order.id)
 
         account_created = False
         verification_sent = False
@@ -274,6 +306,15 @@ class CustomerCheckoutService:
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
 
+        # Evaluate rules after commit — may issue a grant for the NEXT order
+        try:
+            DiscountRuleEvaluator(self.db).evaluate_after_order_placed(
+                customer.id, loaded.id
+            )
+            self.db.commit()
+        except Exception:  # noqa: BLE001
+            pass  # Rule evaluation failure must never block checkout
+
         whatsapp_url = WhatsAppOrderMessageService.build_whatsapp_url(loaded)
         customer_email = normalize_email(payload.customer.email)
         order_type_label = (
@@ -294,6 +335,12 @@ class CustomerCheckoutService:
                 total_amount=loaded.total_revenue_snapshot,
                 whatsapp_url=whatsapp_url,
                 premium_packaging_notice=premium_packaging_notice,
+                products_subtotal=loaded.products_subtotal_snapshot,
+                collections_subtotal=loaded.collections_subtotal_snapshot,
+                delivery_fee=loaded.delivery_fee_snapshot,
+                discount_amount=loaded.discount_amount_snapshot,
+                discount_label=_build_discount_label(loaded),
+                tax_lines=_build_tax_lines_for_email(loaded),
             ),
             context=f"order_confirmation:{loaded.order_number}",
         )
@@ -393,6 +440,7 @@ class CustomerCheckoutService:
         delivery_fee: Decimal,
         *,
         is_pickup: bool,
+        discount_grant=None,
     ):
         return self.profitability.build_order_snapshots(
             product_lines=[
@@ -416,6 +464,7 @@ class CustomerCheckoutService:
             ],
             delivery_fee=delivery_fee,
             is_pickup=is_pickup,
+            discount_grant=discount_grant,
         )
 
     @staticmethod
@@ -517,3 +566,26 @@ class CustomerCheckoutService:
         prefix = f"WEB-{today}-"
         count = self.orders.count_orders_for_prefix(prefix) + 1
         return f"{prefix}{count:04d}"
+
+
+def _build_discount_label(order: "Order") -> str | None:
+    if not order.discount_amount_snapshot or order.discount_amount_snapshot <= 0:
+        return None
+    return format_discount_label(
+        order.discount_type_snapshot,
+        order.discount_value_snapshot,
+    )
+
+
+def _build_tax_lines_for_email(order: "Order") -> list[tuple[str, "Decimal"]] | None:
+    from decimal import Decimal as _D
+    tax_lines_raw = order.tax_lines_snapshot or []
+    if not tax_lines_raw:
+        return None
+    result = []
+    for t in tax_lines_raw:
+        label = t.get("name", "Tax")
+        if t.get("charge_type") == "percentage":
+            label = f"{label} ({t.get('configured_amount', '')}%)"
+        result.append((label, _D(str(t.get("applied_amount", "0")))))
+    return result or None

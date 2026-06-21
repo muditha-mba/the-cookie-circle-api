@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -56,6 +57,10 @@ from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.order_selection_snapshot import build_order_collection_line_selection
 from app.services.order_notification_service import notify_team_new_order
 from app.services.product_cost_service import _money
+from app.services.discount_rule_evaluator import (
+    ORDER_STATUSES_COUNTING_TOWARD_DISCOUNT_RULES,
+    DiscountRuleEvaluator,
+)
 
 _STATUS_TIMESTAMP_FIELDS: dict[OrderStatus, str] = {
     OrderStatus.CONFIRMED: "confirmed_at",
@@ -64,6 +69,8 @@ _STATUS_TIMESTAMP_FIELDS: dict[OrderStatus, str] = {
     OrderStatus.DELIVERED: "delivered_at",
     OrderStatus.CANCELLED: "cancelled_at",
 }
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -139,6 +146,10 @@ class OrderService:
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
         notify_team_new_order(loaded)
+
+        # Evaluate discount rules after order placement
+        self._evaluate_discount_rules(customer.id, loaded.id)
+
         return self._to_detail(loaded)
 
     def get(self, order_id: uuid.UUID) -> OrderDetailResponse:
@@ -299,6 +310,13 @@ class OrderService:
                 order.scheduled_delivery_date,
             )
 
+        if (
+            payload.status is not None
+            and payload.status != previous_status
+            and payload.status in ORDER_STATUSES_COUNTING_TOWARD_DISCOUNT_RULES
+        ):
+            self._evaluate_discount_rules(order.customer_id, order.id)
+
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
         return self._to_detail(loaded)
@@ -309,6 +327,13 @@ class OrderService:
             raise NotFoundError("Order not found")
         self.orders.delete(order)
         self.db.commit()
+
+    def _evaluate_discount_rules(self, customer_id: uuid.UUID, order_id: uuid.UUID) -> None:
+        try:
+            DiscountRuleEvaluator(self.db).evaluate_after_order_placed(customer_id, order_id)
+            self.db.commit()
+        except Exception:
+            logger.exception("Discount rule evaluation failed for order %s", order_id)
 
     def preview(self, payload: OrderPreviewRequest) -> OrderPreviewResponse:
         settings = self.business_settings.get_settings()
@@ -331,6 +356,8 @@ class OrderService:
             packaging_cost_snapshot=financials.packaging_cost_snapshot,
             products_cost_snapshot=financials.products_cost_snapshot,
             collections_cost_snapshot=financials.collections_cost_snapshot,
+            total_tax_snapshot=financials.total_tax_snapshot,
+            tax_lines_snapshot=financials.tax_lines_snapshot,
             total_revenue_snapshot=financials.total_revenue_snapshot,
             total_cost_snapshot=financials.total_cost_snapshot,
             total_profit_snapshot=financials.total_profit_snapshot,
@@ -618,6 +645,8 @@ class OrderService:
             delivery_cost_snapshot=order.delivery_cost_snapshot,
             package_fee_revenue_snapshot=order.package_fee_revenue_snapshot,
             packaging_cost_snapshot=order.packaging_cost_snapshot,
+            total_tax_snapshot=order.total_tax_snapshot,
+            tax_lines_snapshot=order.tax_lines_snapshot or [],
             total_revenue_snapshot=order.total_revenue_snapshot,
             financial_performance=OrderFinancialPerformance(
                 snapshot=self.profitability.financial_snapshot_from_order(order),

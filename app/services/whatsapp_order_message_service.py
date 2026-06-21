@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.enums import OrderType, PaymentMethod
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
+from app.utils.discount_format import format_discount_label
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
 
@@ -89,6 +90,22 @@ class WhatsAppOrderMessageService:
         if order.collections_subtotal_snapshot and order.collections_subtotal_snapshot > 0:
             lines.append(f"*Collections Subtotal:* {cls._format_lkr(order.collections_subtotal_snapshot)}")
         lines.append(f"*Delivery Fee:* {cls._format_lkr(order.delivery_fee_snapshot)}")
+        discount = getattr(order, "discount_amount_snapshot", None)
+        if discount and discount > 0:
+            discount_label = format_discount_label(
+                getattr(order, "discount_type_snapshot", None),
+                getattr(order, "discount_value_snapshot", None),
+            )
+            lines.append(f"*{discount_label}:* − {cls._format_lkr(discount)}")
+        for tax in (order.tax_lines_snapshot or []):
+            name = tax.get("name", "Tax")
+            charge_type = tax.get("charge_type")
+            configured = tax.get("configured_amount", "")
+            applied = tax.get("applied_amount")
+            if applied is not None:
+                from decimal import Decimal as _D
+                label = f"{name} ({configured}%)" if charge_type == "percentage" else name
+                lines.append(f"*{label}:* {cls._format_lkr(_D(str(applied)))}")
         lines.append(f"*Total:* {cls._format_lkr(order.total_revenue_snapshot)}")
         premium_notice = premium_packaging_notice_from_collection_lines(order.collection_lines)
         if premium_notice:

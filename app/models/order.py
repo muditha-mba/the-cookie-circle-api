@@ -137,6 +137,33 @@ class Order(Base, TimestampMixin):
     total_cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     total_profit_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     margin_percentage_snapshot: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    pre_discount_subtotal_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
+    discount_amount_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+        default=Decimal("0"),
+    )
+    discount_type_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    discount_value_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    discount_source_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    discount_rule_id_snapshot: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    customer_discount_grant_id_snapshot: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    gross_revenue_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     preparing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

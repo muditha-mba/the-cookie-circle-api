@@ -9,6 +9,7 @@ from app.core.enums import OrderSource, OrderType
 from app.models.order import Order
 from app.services.email import get_email_service
 from app.services.email.delivery import send_email_safely
+from app.utils.discount_format import format_discount_label
 from app.utils.order_package_fee import package_fee_revenue_from_order
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,27 @@ def notify_team_new_order(order: Order) -> None:
     admin_order_url = f"{admin_base}/orders/{order.id}"
 
     package_fee_revenue = package_fee_revenue_from_order(order)
+    discount_amount = order.discount_amount_snapshot
+    discount_label: str | None = None
+    if discount_amount and discount_amount > 0:
+        discount_label = format_discount_label(
+            order.discount_type_snapshot,
+            order.discount_value_snapshot,
+        )
+
+    from decimal import Decimal as _D
+    tax_lines: list[tuple[str, _D]] | None = None
+    tax_lines_raw = order.tax_lines_snapshot or []
+    if tax_lines_raw:
+        tax_lines = []
+        for t in tax_lines_raw:
+            label = t.get("name", "Tax")
+            if t.get("charge_type") == "percentage":
+                label = f"{label} ({t.get('configured_amount', '')}%)"
+            tax_lines.append((label, _D(str(t.get("applied_amount", "0")))))
+        if not tax_lines:
+            tax_lines = None
+
     send_email_safely(
         lambda: get_email_service().send_internal_order_notification_email(
             to_email=recipient,
@@ -65,6 +87,9 @@ def notify_team_new_order(order: Order) -> None:
             collections_subtotal=order.collections_subtotal_snapshot,
             package_fee_revenue=package_fee_revenue,
             delivery_fee=order.delivery_fee_snapshot,
+            discount_amount=discount_amount,
+            discount_label=discount_label,
+            tax_lines=tax_lines,
         ),
         context=f"internal_order_notification:{order.order_number}",
     )

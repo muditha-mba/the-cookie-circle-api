@@ -19,6 +19,7 @@ class BusinessSettingsResponse(BaseModel):
     stripe_enabled: bool
     bank_transfer_enabled: bool
     cod_enabled: bool
+    discounts_enabled: bool
 
 
 class BusinessSettingsUpdate(BaseModel):
@@ -33,6 +34,7 @@ class BusinessSettingsUpdate(BaseModel):
     stripe_enabled: bool | None = None
     bank_transfer_enabled: bool | None = None
     cod_enabled: bool | None = None
+    discounts_enabled: bool | None = None
 
     @field_validator("business_email")
     @classmethod

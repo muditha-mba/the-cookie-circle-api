@@ -244,6 +244,9 @@ class ActivityResourceType(str, enum.Enum):
     UTILITY_CHARGE = "utility_charge"
     LABOUR_CHARGE = "labour_charge"
     TAX_CHARGE = "tax_charge"
+    DISCOUNT_RULE = "discount_rule"
+    CUSTOMER_DISCOUNT_GRANT = "customer_discount_grant"
+    PROMOTION_SLIDE = "promotion_slide"
     BUSINESS_SETTINGS = "business_settings"
     FAQ = "faq"
     FAQ_CATEGORY = "faq_category"
@@ -269,5 +272,45 @@ class ClientDeviceType(str, enum.Enum):
     TABLET = "tablet"
     BOT = "bot"
     UNKNOWN = "unknown"
+
+
+class DiscountType(str, enum.Enum):
+    """How a discount is calculated."""
+
+    FIXED = "fixed"
+    PERCENTAGE = "percentage"
+
+
+class DiscountRuleType(str, enum.Enum):
+    """Rule evaluation strategy — extensible for future strategies."""
+
+    ORDER_FREQUENCY_IN_WINDOW = "order_frequency_in_window"
+
+
+class DiscountGrantStatus(str, enum.Enum):
+    """Lifecycle state of a customer discount grant."""
+
+    ACTIVE = "active"
+    USED = "used"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+
+class DiscountSource(str, enum.Enum):
+    """How a discount grant was created."""
+
+    RULE = "rule"
+    MANUAL = "manual"
+
+
+class DiscountAuditEventType(str, enum.Enum):
+    """Business-level events tracked in the discount audit trail."""
+
+    RULE_EVALUATED = "rule_evaluated"
+    GRANTED = "granted"
+    USED = "used"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    OVERRIDE_SET = "override_set"
 
 

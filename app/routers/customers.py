@@ -9,6 +9,8 @@ from app.core.admin_access import can_view_financials
 from app.dependencies.admin import (
     get_current_admin_user,
     get_customer_communication_service,
+    get_customer_discount_grant_service,
+    get_customer_discount_override_service,
     get_customer_insights_service,
     get_customer_note_service,
     get_customer_service,
@@ -25,8 +27,17 @@ from app.schemas.customer_crm import (
     CustomerNoteResponse,
     CustomerOrderHistoryItem,
 )
+from app.schemas.discount import (
+    CustomerDiscountGrantManualCreate,
+    CustomerDiscountGrantResponse,
+    CustomerDiscountGrantRevokeRequest,
+    CustomerDiscountOverrideResponse,
+    CustomerDiscountOverrideSet,
+)
 from app.schemas.pagination import PaginatedResponse
 from app.services.customer_communication_service import CustomerCommunicationService
+from app.services.customer_discount_grant_service import CustomerDiscountGrantService
+from app.services.customer_discount_override_service import CustomerDiscountOverrideService
 from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
 from app.services.customer_service import CustomerService
@@ -185,3 +196,85 @@ def create_customer_communication(
 ) -> CustomerCommunicationResponse:
     """Log internal staff communication with a customer."""
     return service.create(customer_id, payload, created_by=admin_user)
+
+
+# ── Discount sub-routes (super_admin only) ────────────────────────────────────
+
+@router.get(
+    "/{customer_id}/discounts/grants",
+    response_model=list[CustomerDiscountGrantResponse],
+)
+def get_customer_discount_grants(
+    customer_id: uuid.UUID,
+    service: Annotated[CustomerDiscountGrantService, Depends(get_customer_discount_grant_service)],
+) -> list[CustomerDiscountGrantResponse]:
+    """List all discount grants for a customer."""
+    return service.get_customer_grants(customer_id)
+
+
+@router.post(
+    "/{customer_id}/discounts/grant",
+    response_model=CustomerDiscountGrantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def grant_customer_discount(
+    customer_id: uuid.UUID,
+    payload: CustomerDiscountGrantManualCreate,
+    admin_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[CustomerDiscountGrantService, Depends(get_customer_discount_grant_service)],
+) -> CustomerDiscountGrantResponse:
+    """Manually issue a discount grant to a customer."""
+    return service.manual_grant(customer_id, payload, admin_user_id=admin_user.id)
+
+
+@router.post(
+    "/{customer_id}/discounts/grants/{grant_id}/revoke",
+    response_model=CustomerDiscountGrantResponse,
+)
+def revoke_customer_discount(
+    customer_id: uuid.UUID,
+    grant_id: uuid.UUID,
+    payload: CustomerDiscountGrantRevokeRequest,
+    admin_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[CustomerDiscountGrantService, Depends(get_customer_discount_grant_service)],
+) -> CustomerDiscountGrantResponse:
+    """Revoke an active customer discount grant."""
+    return service.revoke(customer_id, grant_id, payload, admin_user_id=admin_user.id)
+
+
+@router.get(
+    "/{customer_id}/discount-override",
+    response_model=CustomerDiscountOverrideResponse | None,
+)
+def get_customer_discount_override(
+    customer_id: uuid.UUID,
+    service: Annotated[CustomerDiscountOverrideService, Depends(get_customer_discount_override_service)],
+) -> CustomerDiscountOverrideResponse | None:
+    """Get the per-customer discount override, if any."""
+    return service.get_override(customer_id)
+
+
+@router.put(
+    "/{customer_id}/discount-override",
+    response_model=CustomerDiscountOverrideResponse,
+)
+def set_customer_discount_override(
+    customer_id: uuid.UUID,
+    payload: CustomerDiscountOverrideSet,
+    admin_user: Annotated[User, Depends(get_current_admin_user)],
+    service: Annotated[CustomerDiscountOverrideService, Depends(get_customer_discount_override_service)],
+) -> CustomerDiscountOverrideResponse:
+    """Set or update the per-customer discount override."""
+    return service.set_override(customer_id, payload, admin_user_id=admin_user.id)
+
+
+@router.delete(
+    "/{customer_id}/discount-override",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_customer_discount_override(
+    customer_id: uuid.UUID,
+    service: Annotated[CustomerDiscountOverrideService, Depends(get_customer_discount_override_service)],
+) -> None:
+    """Remove the per-customer discount override (revert to global default)."""
+    service.delete_override(customer_id)
