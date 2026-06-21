@@ -44,6 +44,12 @@ class EmailService(ABC):
         discount_amount: Decimal | None = None,
         discount_label: str | None = None,
         tax_lines: list[tuple[str, Decimal]] | None = None,
+        confirmation_intro: str | None = None,
+        bank_name: str | None = None,
+        bank_account_name: str | None = None,
+        bank_account_number: str | None = None,
+        bank_branch: str | None = None,
+        bank_transfer_instructions: str | None = None,
     ) -> None:
         """Send an order confirmation email after checkout."""
 
@@ -68,5 +74,8 @@ class EmailService(ABC):
         discount_amount: Decimal | None = None,
         discount_label: str | None = None,
         tax_lines: list[tuple[str, Decimal]] | None = None,
+        notification_intro: str | None = None,
+        notification_headline: str | None = None,
+        notification_eyebrow: str | None = None,
     ) -> None:
         """Notify the business inbox that a new order was created."""

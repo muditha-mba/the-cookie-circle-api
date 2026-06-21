@@ -75,6 +75,12 @@ class ConsoleEmailService(EmailService):
         discount_amount: Decimal | None = None,
         discount_label: str | None = None,
         tax_lines: list[tuple[str, Decimal]] | None = None,
+        confirmation_intro: str | None = None,
+        bank_name: str | None = None,
+        bank_account_name: str | None = None,
+        bank_account_number: str | None = None,
+        bank_branch: str | None = None,
+        bank_transfer_instructions: str | None = None,
     ) -> None:
         content = build_order_confirmation_email(
             first_name=first_name,
@@ -90,6 +96,12 @@ class ConsoleEmailService(EmailService):
             discount_amount=discount_amount,
             discount_label=discount_label,
             tax_lines=tax_lines,
+            confirmation_intro=confirmation_intro,
+            bank_name=bank_name,
+            bank_account_name=bank_account_name,
+            bank_account_number=bank_account_number,
+            bank_branch=bank_branch,
+            bank_transfer_instructions=bank_transfer_instructions,
         )
         self._log(content, banner="ORDER CONFIRMATION (development)", to_email=to_email)
 
@@ -113,6 +125,9 @@ class ConsoleEmailService(EmailService):
         discount_amount: Decimal | None = None,
         discount_label: str | None = None,
         tax_lines: list[tuple[str, Decimal]] | None = None,
+        notification_intro: str | None = None,
+        notification_headline: str | None = None,
+        notification_eyebrow: str | None = None,
     ) -> None:
         content = build_internal_order_notification_email(
             order_number=order_number,
@@ -131,5 +146,8 @@ class ConsoleEmailService(EmailService):
             discount_amount=discount_amount,
             discount_label=discount_label,
             tax_lines=tax_lines,
+            notification_intro=notification_intro,
+            notification_headline=notification_headline,
+            notification_eyebrow=notification_eyebrow,
         )
         self._log(content, banner="INTERNAL ORDER ALERT (development)", to_email=to_email)

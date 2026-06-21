@@ -32,7 +32,7 @@ from app.repositories.delivery_area_repository import DeliveryAreaRepository
 from app.repositories.order_repository import OrderRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.business_settings import BusinessSettingsResponse
+from app.services.client_payment_options import validate_client_payment_method
 from app.schemas.client_ordering import (
     ClientCheckoutRequest,
     ClientCheckoutResponse,
@@ -55,6 +55,12 @@ from app.services.delivery_schedule_copy_service import (
 from app.services.order_notification_service import notify_team_new_order
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.business_setting_service import BusinessSettingService
+from app.services.checkout_follow_up import (
+    assert_online_payment_not_implemented,
+    build_checkout_response,
+    order_confirmation_include_whatsapp_cta,
+    order_confirmation_intro,
+)
 from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.customer_delivery_date_service import (
     CATERING_MIN_COOKIE_QUANTITY,
@@ -93,7 +99,7 @@ class ValidatedOrderRequest:
 
 
 class CustomerCheckoutService:
-    """Public checkout without payment gateway integration."""
+    """Public checkout; online gateway redirect is added in the WebXPay integration phase."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -208,7 +214,8 @@ class CustomerCheckoutService:
 
         validated = self._validate_request(payload)
         settings = self.settings.get_settings()
-        self._validate_payment_method(settings, payload.payment_method)
+        validate_client_payment_method(settings, payload.payment_method, payload.order_type)
+        assert_online_payment_not_implemented(payload.payment_method)
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
 
@@ -315,7 +322,11 @@ class CustomerCheckoutService:
         except Exception:  # noqa: BLE001
             pass  # Rule evaluation failure must never block checkout
 
-        whatsapp_url = WhatsAppOrderMessageService.build_whatsapp_url(loaded)
+        whatsapp_url = (
+            WhatsAppOrderMessageService.build_whatsapp_url(loaded)
+            if order_confirmation_include_whatsapp_cta(loaded.payment_method)
+            else None
+        )
         customer_email = normalize_email(payload.customer.email)
         order_type_label = (
             "Catering"
@@ -324,6 +335,11 @@ class CustomerCheckoutService:
         )
         premium_packaging_notice = premium_packaging_notice_from_collection_lines(
             loaded.collection_lines,
+        )
+        bank_details = (
+            settings.bank_transfer_details
+            if loaded.payment_method == PaymentMethod.BANK_TRANSFER
+            else None
         )
         send_email_safely(
             lambda: get_email_service().send_order_confirmation_email(
@@ -341,20 +357,24 @@ class CustomerCheckoutService:
                 discount_amount=loaded.discount_amount_snapshot,
                 discount_label=_build_discount_label(loaded),
                 tax_lines=_build_tax_lines_for_email(loaded),
+                confirmation_intro=order_confirmation_intro(
+                    order_type=loaded.order_type,
+                    payment_method=loaded.payment_method,
+                ),
+                bank_name=bank_details.bank_name if bank_details else None,
+                bank_account_name=bank_details.account_name if bank_details else None,
+                bank_account_number=bank_details.account_number if bank_details else None,
+                bank_branch=bank_details.branch if bank_details else None,
+                bank_transfer_instructions=bank_details.instructions if bank_details else None,
             ),
             context=f"order_confirmation:{loaded.order_number}",
         )
         notify_team_new_order(loaded)
-        return ClientCheckoutResponse(
-            order_id=loaded.id,
-            order_number=loaded.order_number,
-            order_type=loaded.order_type,
-            scheduled_delivery_date=loaded.scheduled_delivery_date,
-            total_revenue_snapshot=loaded.total_revenue_snapshot,
-            whatsapp_url=whatsapp_url,
+        return build_checkout_response(
+            loaded,
+            business_settings=settings,
             account_created=account_created,
-            verification_email_sent=verification_sent,
-            message="Order placed successfully. Complete your order on WhatsApp when ready.",
+            verification_sent=verification_sent,
         )
 
     def _validate_request(self, payload: ClientOrderPreviewRequest) -> ValidatedOrderRequest:
@@ -466,24 +486,6 @@ class CustomerCheckoutService:
             is_pickup=is_pickup,
             discount_grant=discount_grant,
         )
-
-    @staticmethod
-    def _validate_payment_method(
-        settings: BusinessSettingsResponse,
-        payment_method: PaymentMethod,
-    ) -> None:
-        allowed: set[PaymentMethod] = set()
-        if settings.cod_enabled:
-            allowed.add(PaymentMethod.CASH_ON_DELIVERY)
-        if settings.bank_transfer_enabled:
-            allowed.add(PaymentMethod.BANK_TRANSFER)
-        if settings.stripe_enabled:
-            allowed.add(PaymentMethod.STRIPE)
-
-        if not allowed:
-            raise ValidationError("No payment methods are currently available.")
-        if payment_method not in allowed:
-            raise ValidationError("Selected payment method is not available.")
 
     def _resolve_customer(self, payload: ClientCheckoutRequest) -> Customer:
         billing = (

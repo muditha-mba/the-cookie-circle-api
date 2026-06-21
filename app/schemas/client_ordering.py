@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
@@ -251,13 +252,26 @@ class ClientCheckoutRequest(ClientOrderPreviewRequest):
         return self
 
 
+class ClientBankTransferInstructions(BaseModel):
+    bank_name: str
+    account_name: str
+    account_number: str
+    branch: str
+    instructions: str
+    amount: str
+    order_number: str
+
+
 class ClientCheckoutResponse(BaseModel):
     order_id: UUID
     order_number: str
     order_type: OrderType
     scheduled_delivery_date: date
     total_revenue_snapshot: Decimal
-    whatsapp_url: str
+    whatsapp_url: str | None = None
+    account_order_url: str | None = None
+    bank_transfer_instructions: ClientBankTransferInstructions | None = None
+    redirect_to: Literal["whatsapp", "account_order", "online_payment"]
     account_created: bool = False
     verification_email_sent: bool = False
     message: str

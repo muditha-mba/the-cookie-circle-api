@@ -6,7 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.core.enums import OrderStatus, OrderType, PaymentMethod
+from app.core.enums import OrderStatus, OrderType, PaymentMethod, PaymentStatus
+from app.schemas.client_ordering import ClientBankTransferInstructions
 from app.schemas.fields import NormalizedEmail
 from app.utils.password import validate_password_strength
 
@@ -172,6 +173,7 @@ class ClientAccountOrderDetailResponse(BaseModel):
     order_number: str
     order_type: OrderType
     status: OrderStatus
+    payment_status: PaymentStatus
     event_name: str | None
     payment_method: PaymentMethod
     delivery_area_name: str | None
@@ -191,6 +193,7 @@ class ClientAccountOrderDetailResponse(BaseModel):
     collection_lines: list[ClientAccountOrderCollectionLine]
     product_lines: list[ClientAccountOrderProductLine]
     premium_packaging_notice: str | None = None
+    bank_transfer_instructions: ClientBankTransferInstructions | None = None
 
 
 ClientAccountDashboardResponse.model_rebuild()

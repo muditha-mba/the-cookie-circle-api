@@ -4,14 +4,14 @@ import uuid
 from dataclasses import asdict
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.dependencies.client import (
     get_customer_catalog_service,
     get_customer_checkout_service,
 )
 from app.dependencies.client_account import get_optional_current_customer_id
-from app.core.enums import PaymentMethod
+from app.core.enums import OrderType
 from app.schemas.business_settings import BusinessSettingsResponse
 from app.schemas.client_ordering import (
     CateringConstraintsResponse,
@@ -24,11 +24,11 @@ from app.schemas.client_ordering import (
     ClientDeliveryAreaOption,
     ClientOrderPreviewRequest,
     ClientOrderPreviewResponse,
-    ClientPaymentMethodOption,
     EmailAvailabilityResponse,
     DeliveryScheduleCopyResponse,
     WeeklyDeliveryInfoResponse,
 )
+from app.services.client_payment_options import get_client_payment_method_options
 from app.services.customer_catalog_service import CustomerCatalogService
 from app.services.customer_checkout_service import CustomerCheckoutService
 from app.services.customer_delivery_date_service import (
@@ -51,41 +51,16 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/client", tags=["Client Ordering"])
 
 
-def _client_payment_methods(settings: BusinessSettingsResponse) -> list[ClientPaymentMethodOption]:
-    methods: list[ClientPaymentMethodOption] = []
-    if settings.cod_enabled:
-        methods.append(
-            ClientPaymentMethodOption(
-                code=PaymentMethod.CASH_ON_DELIVERY,
-                label="Cash on delivery",
-            ),
-        )
-    if settings.bank_transfer_enabled:
-        methods.append(
-            ClientPaymentMethodOption(
-                code=PaymentMethod.BANK_TRANSFER,
-                label="Bank transfer",
-            ),
-        )
-    if settings.stripe_enabled:
-        methods.append(
-            ClientPaymentMethodOption(
-                code=PaymentMethod.STRIPE,
-                label="Card payment",
-            ),
-        )
-    return methods
-
-
 @router.get("/ordering/checkout-options", response_model=ClientCheckoutOptionsResponse)
 def get_checkout_options(
     db: Annotated[Session, Depends(get_db)],
+    order_type: Annotated[OrderType | None, Query()] = None,
 ) -> ClientCheckoutOptionsResponse:
     settings = BusinessSettingService(db).get_settings()
     return ClientCheckoutOptionsResponse(
         use_fixed_delivery_fee=settings.use_fixed_delivery_fee,
         fixed_delivery_fee=str(settings.delivery_fee),
-        payment_methods=_client_payment_methods(settings),
+        payment_methods=get_client_payment_method_options(settings, order_type),
     )
 
 

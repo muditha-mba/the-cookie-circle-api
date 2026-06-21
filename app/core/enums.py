@@ -128,7 +128,8 @@ class PaymentMethod(str, enum.Enum):
 
     CASH_ON_DELIVERY = "cash_on_delivery"
     BANK_TRANSFER = "bank_transfer"
-    STRIPE = "stripe"
+    ONLINE_CARD = "online_card"
+    ONLINE_BANK_DEBIT = "online_bank_debit"
     MANUAL = "manual"
 
 

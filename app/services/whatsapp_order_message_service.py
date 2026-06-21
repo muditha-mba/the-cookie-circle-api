@@ -4,7 +4,7 @@ from decimal import Decimal
 from urllib.parse import quote
 
 from app.core.config import settings
-from app.core.enums import OrderType, PaymentMethod
+from app.services.client_payment_options import payment_method_label
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.utils.discount_format import format_discount_label
@@ -110,19 +110,9 @@ class WhatsAppOrderMessageService:
         premium_notice = premium_packaging_notice_from_collection_lines(order.collection_lines)
         if premium_notice:
             lines.append(f"🎁 {premium_notice}")
-        lines.append(f"*Payment Method:* {cls._payment_method_label(order.payment_method)}")
+        lines.append(f"*Payment Method:* {payment_method_label(order.payment_method)}")
 
         return "\n".join(lines)
-
-    @staticmethod
-    def _payment_method_label(method: PaymentMethod) -> str:
-        labels = {
-            PaymentMethod.CASH_ON_DELIVERY: "Cash on delivery",
-            PaymentMethod.BANK_TRANSFER: "Bank transfer",
-            PaymentMethod.STRIPE: "Card payment",
-            PaymentMethod.MANUAL: "Manual",
-        }
-        return labels.get(method, str(method).replace("_", " ").title())
 
     @staticmethod
     def _format_collection_line(line: OrderCollectionLine) -> list[str]:

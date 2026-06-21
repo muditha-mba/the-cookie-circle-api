@@ -90,6 +90,22 @@ def notify_team_new_order(order: Order) -> None:
             discount_amount=discount_amount,
             discount_label=discount_label,
             tax_lines=tax_lines,
+            notification_intro=(
+                "A new catering enquiry was submitted. Call the customer to confirm details "
+                "and the final total before requesting bank transfer payment."
+                if order.order_type == OrderType.CATERING
+                else None
+            ),
+            notification_headline=(
+                "New catering enquiry"
+                if order.order_type == OrderType.CATERING
+                else None
+            ),
+            notification_eyebrow=(
+                "Catering alert"
+                if order.order_type == OrderType.CATERING
+                else None
+            ),
         ),
         context=f"internal_order_notification:{order.order_number}",
     )

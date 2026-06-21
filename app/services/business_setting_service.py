@@ -11,6 +11,7 @@ from app.core.exceptions import ValidationError
 from app.core.social_platforms import SOCIAL_PLATFORM_LABELS, SOCIAL_PLATFORMS, SocialPlatform
 from app.repositories.business_setting_repository import BusinessSettingRepository
 from app.schemas.business_settings import (
+    BankTransferDetailsResponse,
     BusinessSettingsResponse,
     BusinessSettingsUpdate,
     SuggestedDeliveryDateResponse,
@@ -41,9 +42,18 @@ class BusinessSettingService:
         keys.DELIVERY_DAY: Weekday.SATURDAY.value,
         keys.BUSINESS_PHONE: "",
         keys.BUSINESS_EMAIL: "",
-        keys.STRIPE_ENABLED: "false",
+        keys.ONLINE_CARD_ENABLED: "false",
+        keys.ONLINE_BANK_DEBIT_ENABLED: "false",
         keys.BANK_TRANSFER_ENABLED: "true",
         keys.COD_ENABLED: "true",
+        keys.BANK_NAME: "",
+        keys.BANK_ACCOUNT_NAME: "",
+        keys.BANK_ACCOUNT_NUMBER: "",
+        keys.BANK_BRANCH: "",
+        keys.BANK_TRANSFER_INSTRUCTIONS: (
+            "Use your order number as the payment reference. "
+            "We will confirm your order after we verify the transfer."
+        ),
         keys.SHARED_MEMORIES_ENABLED: "false",
         keys.FAQS_ENABLED: "true",
         keys.DISCOUNTS_ENABLED: "false",
@@ -74,14 +84,28 @@ class BusinessSettingService:
             current[keys.BUSINESS_PHONE] = payload.business_phone
         if payload.business_email is not None:
             current[keys.BUSINESS_EMAIL] = payload.business_email
-        if payload.stripe_enabled is not None:
-            current[keys.STRIPE_ENABLED] = str(payload.stripe_enabled).lower()
+        if payload.online_card_enabled is not None:
+            current[keys.ONLINE_CARD_ENABLED] = str(payload.online_card_enabled).lower()
+        if payload.online_bank_debit_enabled is not None:
+            current[keys.ONLINE_BANK_DEBIT_ENABLED] = str(
+                payload.online_bank_debit_enabled,
+            ).lower()
         if payload.bank_transfer_enabled is not None:
             current[keys.BANK_TRANSFER_ENABLED] = str(payload.bank_transfer_enabled).lower()
         if payload.cod_enabled is not None:
             current[keys.COD_ENABLED] = str(payload.cod_enabled).lower()
         if payload.discounts_enabled is not None:
             current[keys.DISCOUNTS_ENABLED] = str(payload.discounts_enabled).lower()
+        if payload.bank_name is not None:
+            current[keys.BANK_NAME] = payload.bank_name
+        if payload.bank_account_name is not None:
+            current[keys.BANK_ACCOUNT_NAME] = payload.bank_account_name
+        if payload.bank_account_number is not None:
+            current[keys.BANK_ACCOUNT_NUMBER] = payload.bank_account_number
+        if payload.bank_branch is not None:
+            current[keys.BANK_BRANCH] = payload.bank_branch
+        if payload.bank_transfer_instructions is not None:
+            current[keys.BANK_TRANSFER_INSTRUCTIONS] = payload.bank_transfer_instructions
 
         for key, value in current.items():
             if key in keys.ALL_KEYS:
@@ -232,8 +256,16 @@ class BusinessSettingService:
             delivery_day=parse_weekday(data[keys.DELIVERY_DAY]),
             business_phone=data[keys.BUSINESS_PHONE],
             business_email=data[keys.BUSINESS_EMAIL],
-            stripe_enabled=data[keys.STRIPE_ENABLED].lower() == "true",
+            online_card_enabled=data[keys.ONLINE_CARD_ENABLED].lower() == "true",
+            online_bank_debit_enabled=data[keys.ONLINE_BANK_DEBIT_ENABLED].lower() == "true",
             bank_transfer_enabled=data[keys.BANK_TRANSFER_ENABLED].lower() == "true",
             cod_enabled=data[keys.COD_ENABLED].lower() == "true",
             discounts_enabled=data.get(keys.DISCOUNTS_ENABLED, "false").lower() == "true",
+            bank_transfer_details=BankTransferDetailsResponse(
+                bank_name=data[keys.BANK_NAME],
+                account_name=data[keys.BANK_ACCOUNT_NAME],
+                account_number=data[keys.BANK_ACCOUNT_NUMBER],
+                branch=data[keys.BANK_BRANCH],
+                instructions=data[keys.BANK_TRANSFER_INSTRUCTIONS],
+            ),
         )
