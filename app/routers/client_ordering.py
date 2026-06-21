@@ -1,8 +1,9 @@
 """Public client ordering routes (no authentication required)."""
 
+from dataclasses import asdict
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.dependencies.client import (
     get_customer_catalog_service,
@@ -16,11 +17,14 @@ from app.schemas.client_ordering import (
     ClientCheckoutOptionsResponse,
     ClientCheckoutRequest,
     ClientCheckoutResponse,
+    ClientCollectionQuoteRequest,
+    ClientCollectionQuoteResponse,
     ClientDeliveryAreaOption,
     ClientOrderPreviewRequest,
     ClientOrderPreviewResponse,
     ClientPaymentMethodOption,
     EmailAvailabilityResponse,
+    DeliveryScheduleCopyResponse,
     WeeklyDeliveryInfoResponse,
 )
 from app.services.customer_catalog_service import CustomerCatalogService
@@ -29,12 +33,17 @@ from app.services.customer_delivery_date_service import (
     CATERING_MIN_COOKIE_QUANTITY,
     CATERING_MIN_DAYS_AHEAD,
     CustomerDeliveryDateService,
-    WEEKLY_DELIVERY_EXPLANATION,
+)
+from app.services.delivery_schedule_copy_service import (
+    delivery_schedule_copy_from_settings,
+    get_delivery_schedule_config,
 )
 from app.database.session import get_db
 from app.repositories.delivery_area_repository import DeliveryAreaRepository
 from app.services.business_setting_service import BusinessSettingService
 from app.services.delivery_fee_service import resolve_delivery_fee
+from app.utils.captcha import verify_captcha_token
+from app.utils.client_ip import get_client_ip
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/client", tags=["Client Ordering"])
@@ -103,13 +112,39 @@ def list_client_delivery_areas(
     ]
 
 
+def _delivery_schedule_copy_response(
+    settings: BusinessSettingsResponse,
+) -> DeliveryScheduleCopyResponse:
+    copy = delivery_schedule_copy_from_settings(
+        order_cutoff_day=settings.order_cutoff_day,
+        delivery_day=settings.delivery_day,
+    )
+    return DeliveryScheduleCopyResponse.model_validate(asdict(copy))
+
+
+@router.get("/ordering/delivery-schedule", response_model=DeliveryScheduleCopyResponse)
+def get_delivery_schedule(
+    db: Annotated[Session, Depends(get_db)],
+) -> DeliveryScheduleCopyResponse:
+    settings = BusinessSettingService(db).get_settings()
+    return _delivery_schedule_copy_response(settings)
+
+
 @router.get("/ordering/weekly-delivery", response_model=WeeklyDeliveryInfoResponse)
-def get_weekly_delivery_info() -> WeeklyDeliveryInfoResponse:
-    scheduled = CustomerDeliveryDateService.calculate_weekly_delivery_date()
+def get_weekly_delivery_info(
+    db: Annotated[Session, Depends(get_db)],
+) -> WeeklyDeliveryInfoResponse:
+    settings = BusinessSettingService(db).get_settings()
+    schedule_config = get_delivery_schedule_config(db)
+    scheduled = CustomerDeliveryDateService.calculate_weekly_delivery_date(
+        config=schedule_config,
+    )
     return WeeklyDeliveryInfoResponse(
+        **_delivery_schedule_copy_response(settings).model_dump(),
         calculated_delivery_date=scheduled,
-        is_before_cutoff=CustomerDeliveryDateService.is_before_weekly_cutoff(),
-        explanation=WEEKLY_DELIVERY_EXPLANATION,
+        is_before_cutoff=CustomerDeliveryDateService.is_before_weekly_cutoff(
+            config=schedule_config,
+        ),
     )
 
 
@@ -120,6 +155,15 @@ def get_catering_constraints() -> CateringConstraintsResponse:
         minimum_days_ahead=CATERING_MIN_DAYS_AHEAD,
         earliest_delivery_date=CustomerDeliveryDateService.calculate_catering_earliest_date(),
     )
+
+
+@router.post("/ordering/collection-quote", response_model=ClientCollectionQuoteResponse)
+def quote_collection_price(
+    payload: ClientCollectionQuoteRequest,
+    service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
+) -> ClientCollectionQuoteResponse:
+    """Return server-calculated pack price for a completed collection selection."""
+    return service.quote_collection(payload)
 
 
 @router.post("/orders/preview", response_model=ClientOrderPreviewResponse)
@@ -138,9 +182,11 @@ def preview_client_order(
 )
 def checkout_client_order(
     payload: ClientCheckoutRequest,
+    request: Request,
     service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
 ) -> ClientCheckoutResponse:
     """Place a website order and receive a WhatsApp handoff URL."""
+    verify_captcha_token(payload.captcha_token, remote_ip=get_client_ip(request))
     return service.checkout(payload)
 
 

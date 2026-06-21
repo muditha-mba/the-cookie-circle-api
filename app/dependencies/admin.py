@@ -9,6 +9,7 @@ from app.core.enums import UserRole
 from app.core.exceptions import ForbiddenError
 from app.database.session import get_db
 from app.dependencies.auth import get_current_user
+from app.dependencies.security import enforce_admin_ip_allowlist
 from app.models.user import User
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_service import CollectionService
@@ -30,6 +31,9 @@ from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
 from app.services.customer_service import CustomerService
 from app.services.delivery_area_service import DeliveryAreaService
+from app.services.faq_category_service import FaqCategoryService
+from app.services.faq_service import FaqService
+from app.services.shared_memory_service import SharedMemoryService
 from app.services.dashboard_service import DashboardService
 from app.services.order_service import OrderService
 from app.services.production_batch_service import ProductionBatchService
@@ -42,10 +46,12 @@ from app.services.product_item_service import ProductItemService
 from app.services.product_item_type_service import ProductItemTypeService
 from app.services.product_service import ProductService
 from app.services.tax_charge_service import TaxChargeService
+from app.services.activity_log_service import ActivityLogService
 from app.services.utility_charge_service import UtilityChargeService
 
 
 def get_current_admin_user(
+    _: Annotated[None, Depends(enforce_admin_ip_allowlist)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """Require an authenticated admin user."""
@@ -250,3 +256,27 @@ def get_analytics_export_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> AnalyticsExportService:
     return AnalyticsExportService(db)
+
+
+def get_faq_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> FaqService:
+    return FaqService(db)
+
+
+def get_faq_category_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> FaqCategoryService:
+    return FaqCategoryService(db)
+
+
+def get_shared_memory_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> SharedMemoryService:
+    return SharedMemoryService(db)
+
+
+def get_activity_log_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ActivityLogService:
+    return ActivityLogService(db)

@@ -7,6 +7,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.delivery_area import DeliveryArea
+from app.utils.search import ilike_contains
 
 
 class DeliveryAreaRepository:
@@ -57,10 +58,10 @@ class DeliveryAreaRepository:
         count_stmt = select(func.count()).select_from(DeliveryArea)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                DeliveryArea.name.ilike(pattern),
-                DeliveryArea.description.ilike(pattern),
+                DeliveryArea.name.ilike(pattern, escape=escape),
+                DeliveryArea.description.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

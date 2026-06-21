@@ -1,6 +1,7 @@
 """Customer Pydantic schemas."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -22,6 +23,10 @@ class CustomerBase(BaseModel):
     landmark: str | None = Field(default=None, max_length=255)
     source: CustomerSource
     marketing_source: MarketingSource | None = None
+    marketing_attribution: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias="marketing_attribution_json",
+    )
     notes: str | None = Field(default=None, max_length=5000)
     is_active: bool = True
 
@@ -110,10 +115,12 @@ class CustomerSummaryResponse(CustomerBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class CustomerDetailResponse(CustomerSummaryResponse):
     """Customer detail."""
 
     user: CustomerUserSummary | None = None
+
+    model_config = {"from_attributes": True, "populate_by_name": True}

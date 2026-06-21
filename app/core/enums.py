@@ -10,6 +10,13 @@ class UserRole(str, enum.Enum):
     CUSTOMER = "CUSTOMER"
 
 
+class AdminRole(str, enum.Enum):
+    """Admin panel access tier — only meaningful when role is ADMIN."""
+
+    SUPER_ADMIN = "super_admin"
+    CLERK_ADMIN = "clerk_admin"
+
+
 class AppContext(str, enum.Enum):
     """Application context for login role enforcement."""
 
@@ -58,6 +65,12 @@ class MarketingSource(str, enum.Enum):
     INSTAGRAM = "instagram"
     FACEBOOK = "facebook"
     WHATSAPP = "whatsapp"
+    TIKTOK = "tiktok"
+    LINKEDIN = "linkedin"
+    YOUTUBE = "youtube"
+    TWITTER = "twitter"
+    PINTEREST = "pinterest"
+    EMAIL = "email"
     REFERRAL = "referral"
     GOOGLE = "google"
     WALK_IN = "walk_in"
@@ -161,5 +174,57 @@ class PurchasePlanningStatus(str, enum.Enum):
     NOT_PLANNED = "not_planned"
     PLANNED = "planned"
     ORDERED = "ordered"
+
+
+class ActivityAction(str, enum.Enum):
+    """Admin activity log action."""
+
+    CREATED = "created"
+    UPDATED = "updated"
+    DELETED = "deleted"
+    EXPORTED = "exported"
+    LOGIN = "login"
+    LOGIN_FAILED = "login_failed"
+    LOGOUT = "logout"
+    LOGOUT_ALL = "logout_all"
+
+
+class ActivityResourceType(str, enum.Enum):
+    """Entity or module targeted by an admin activity."""
+
+    ORDER = "order"
+    PRODUCT = "product"
+    CUSTOMER = "customer"
+    COLLECTION = "collection"
+    COLLECTION_PACKAGE = "collection_package"
+    PRODUCT_ITEM = "product_item"
+    PRODUCT_ITEM_TYPE = "product_item_type"
+    PRODUCT_CATEGORY = "product_category"
+    SUPPLIER = "supplier"
+    DELIVERY_AREA = "delivery_area"
+    UTILITY_CHARGE = "utility_charge"
+    LABOUR_CHARGE = "labour_charge"
+    TAX_CHARGE = "tax_charge"
+    BUSINESS_SETTINGS = "business_settings"
+    FAQ = "faq"
+    FAQ_CATEGORY = "faq_category"
+    SHARED_MEMORY = "shared_memory"
+    REVIEW = "review"
+    PRODUCTION = "production"
+    ANALYTICS = "analytics"
+    DASHBOARD = "dashboard"
+    AUTH = "auth"
+    USER = "user"
+    SYSTEM = "system"
+
+
+class ClientDeviceType(str, enum.Enum):
+    """Coarse device classification from User-Agent."""
+
+    DESKTOP = "desktop"
+    MOBILE = "mobile"
+    TABLET = "tablet"
+    BOT = "bot"
+    UNKNOWN = "unknown"
 
 

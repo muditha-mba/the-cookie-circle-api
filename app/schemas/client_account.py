@@ -82,7 +82,7 @@ class ClientAccountDashboardResponse(BaseModel):
     pending_orders: int
     total_cookies_ordered: int
     total_collections_ordered: int
-    total_amount_spent: Decimal
+    total_reviews: int
     favourite_cookie: str | None
     favourite_package_type: str | None
     recent_orders: list["ClientAccountOrderSummary"]
@@ -190,6 +190,7 @@ class ClientAccountOrderDetailResponse(BaseModel):
     delivery_longitude: Decimal | None
     collection_lines: list[ClientAccountOrderCollectionLine]
     product_lines: list[ClientAccountOrderProductLine]
+    premium_packaging_notice: str | None = None
 
 
 ClientAccountDashboardResponse.model_rebuild()

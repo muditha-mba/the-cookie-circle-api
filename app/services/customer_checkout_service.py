@@ -36,24 +36,35 @@ from app.schemas.business_settings import BusinessSettingsResponse
 from app.schemas.client_ordering import (
     ClientCheckoutRequest,
     ClientCheckoutResponse,
+    ClientCollectionQuoteRequest,
+    ClientCollectionQuoteResponse,
     ClientOrderPreviewRequest,
     ClientOrderPreviewResponse,
     EmailAvailabilityResponse,
 )
+from app.services.package_pricing_service import calculate_package_selling_price
 from app.schemas.order import OrderCollectionLineInput, OrderProductLineInput
 from app.services.auth_service import AuthService
+from app.services.customer_attribution_service import CustomerAttributionService
+from app.services.email import get_email_service
+from app.services.email.delivery import send_email_safely
+from app.services.delivery_schedule_copy_service import (
+    get_delivery_schedule_config,
+    get_delivery_schedule_copy,
+)
+from app.services.order_notification_service import notify_team_new_order
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.business_setting_service import BusinessSettingService
 from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.customer_delivery_date_service import (
     CATERING_MIN_COOKIE_QUANTITY,
     CustomerDeliveryDateService,
-    WEEKLY_DELIVERY_EXPLANATION,
 )
-from app.services.delivery_fee_service import resolve_delivery_fee
+from app.services.delivery_fee_service import is_pickup_delivery_area, resolve_delivery_fee
 from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
 from app.utils.email import normalize_email
+from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
 
 @dataclass(frozen=True)
@@ -111,15 +122,36 @@ class CustomerCheckoutService:
             message="Email is available.",
         )
 
+    def quote_collection(
+        self,
+        payload: ClientCollectionQuoteRequest,
+    ) -> ClientCollectionQuoteResponse:
+        """Server-authoritative collection pack price (cookies + embedded package fee)."""
+        collection = self.collections.get_by_id(payload.collection_id)
+        if not collection or not collection.is_active or not collection.is_public:
+            raise NotFoundError("Collection is not available for ordering.")
+
+        per_pack = self.selection_validator.validate_per_pack(
+            collection,
+            selections=payload.selections,
+        )
+        unit_price = calculate_package_selling_price(collection, per_pack)
+        return ClientCollectionQuoteResponse(unit_price=unit_price)
+
     def preview(self, payload: ClientOrderPreviewRequest) -> ClientOrderPreviewResponse:
         validated = self._validate_request(payload)
         settings = self.settings.get_settings()
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
-        snapshot_result = self._build_snapshots(payload, validated, delivery_fee)
+        snapshot_result = self._build_snapshots(
+            payload,
+            validated,
+            delivery_fee,
+            is_pickup=is_pickup_delivery_area(delivery_area),
+        )
 
         explanation = (
-            WEEKLY_DELIVERY_EXPLANATION
+            get_delivery_schedule_copy(self.db).explanation
             if payload.order_type == OrderType.WEEKLY_DELIVERY
             else None
         )
@@ -163,9 +195,15 @@ class CustomerCheckoutService:
         self._validate_payment_method(settings, payload.payment_method)
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
-        snapshot_result = self._build_snapshots(payload, validated, delivery_fee)
+        snapshot_result = self._build_snapshots(
+            payload,
+            validated,
+            delivery_fee,
+            is_pickup=is_pickup_delivery_area(delivery_area),
+        )
 
         customer = self._resolve_customer(payload)
+        CustomerAttributionService.apply_first_touch(customer, payload.attribution)
         shipping = payload.customer.shipping_address
         billing = (
             shipping
@@ -237,6 +275,29 @@ class CustomerCheckoutService:
         assert loaded is not None
 
         whatsapp_url = WhatsAppOrderMessageService.build_whatsapp_url(loaded)
+        customer_email = normalize_email(payload.customer.email)
+        order_type_label = (
+            "Catering"
+            if loaded.order_type == OrderType.CATERING
+            else "Weekly Delivery"
+        )
+        premium_packaging_notice = premium_packaging_notice_from_collection_lines(
+            loaded.collection_lines,
+        )
+        send_email_safely(
+            lambda: get_email_service().send_order_confirmation_email(
+                to_email=customer_email,
+                first_name=payload.customer.first_name,
+                order_number=loaded.order_number,
+                order_type_label=order_type_label,
+                scheduled_delivery_date=loaded.scheduled_delivery_date,
+                total_amount=loaded.total_revenue_snapshot,
+                whatsapp_url=whatsapp_url,
+                premium_packaging_notice=premium_packaging_notice,
+            ),
+            context=f"order_confirmation:{loaded.order_number}",
+        )
+        notify_team_new_order(loaded)
         return ClientCheckoutResponse(
             order_id=loaded.id,
             order_number=loaded.order_number,
@@ -250,9 +311,11 @@ class CustomerCheckoutService:
         )
 
     def _validate_request(self, payload: ClientOrderPreviewRequest) -> ValidatedOrderRequest:
+        schedule_config = get_delivery_schedule_config(self.db)
         scheduled_date = CustomerDeliveryDateService.resolve_delivery_date(
             order_type=payload.order_type,
             requested_date=payload.requested_delivery_date,
+            config=schedule_config,
         )
         if payload.order_type == OrderType.CATERING:
             product_lines = self._validate_catering_product_lines(payload.product_lines)
@@ -328,6 +391,8 @@ class CustomerCheckoutService:
         payload: ClientOrderPreviewRequest,
         validated: ValidatedOrderRequest,
         delivery_fee: Decimal,
+        *,
+        is_pickup: bool,
     ):
         return self.profitability.build_order_snapshots(
             product_lines=[
@@ -350,6 +415,7 @@ class CustomerCheckoutService:
                 for line in validated.collection_lines
             ],
             delivery_fee=delivery_fee,
+            is_pickup=is_pickup,
         )
 
     @staticmethod

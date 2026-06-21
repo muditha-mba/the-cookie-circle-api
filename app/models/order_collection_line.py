@@ -44,6 +44,11 @@ class OrderCollectionLine(Base, TimestampMixin):
     collection_cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     collection_profit_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     package_fee_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    packaging_cost_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
 
     order: Mapped["Order"] = relationship("Order", back_populates="collection_lines")
     collection: Mapped["Collection"] = relationship("Collection")

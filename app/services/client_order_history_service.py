@@ -21,6 +21,8 @@ from app.schemas.client_account import (
     ClientAccountOrderSummary,
 )
 from app.schemas.pagination import PaginatedResponse
+from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
+from app.utils.search import ilike_contains
 
 
 class ClientOrderHistoryService:
@@ -57,8 +59,8 @@ class ClientOrderHistoryService:
         count_stmt = select(func.count()).select_from(Order).where(Order.customer_id == customer.id)
 
         if search:
-            pattern = f"%{search.strip()}%"
-            clause = or_(Order.order_number.ilike(pattern))
+            pattern, escape = ilike_contains(search)
+            clause = or_(Order.order_number.ilike(pattern, escape=escape))
             stmt = stmt.where(clause)
             count_stmt = count_stmt.where(clause)
         if status:
@@ -168,6 +170,9 @@ class ClientOrderHistoryService:
             delivery_longitude=order.delivery_longitude,
             collection_lines=collection_lines,
             product_lines=product_lines,
+            premium_packaging_notice=premium_packaging_notice_from_collection_lines(
+                order.collection_lines,
+            ),
         )
 
     def _delivery_area_display_name(self, order: Order) -> str | None:

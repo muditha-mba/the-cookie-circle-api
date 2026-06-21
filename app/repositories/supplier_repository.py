@@ -7,6 +7,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.supplier import Supplier
+from app.utils.search import ilike_contains
 
 
 class SupplierRepository:
@@ -59,12 +60,12 @@ class SupplierRepository:
         count_stmt = select(func.count()).select_from(Supplier)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                Supplier.supplier_name.ilike(pattern),
-                Supplier.contact_person.ilike(pattern),
-                Supplier.email.ilike(pattern),
-                Supplier.phone.ilike(pattern),
+                Supplier.supplier_name.ilike(pattern, escape=escape),
+                Supplier.contact_person.ilike(pattern, escape=escape),
+                Supplier.email.ilike(pattern, escape=escape),
+                Supplier.phone.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

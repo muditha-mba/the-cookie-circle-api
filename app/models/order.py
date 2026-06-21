@@ -106,6 +106,21 @@ class Order(Base, TimestampMixin):
         server_default="0",
     )
     delivery_fee_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    delivery_cost_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
+    package_fee_revenue_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
+    packaging_cost_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
     total_revenue_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     total_cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     total_profit_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

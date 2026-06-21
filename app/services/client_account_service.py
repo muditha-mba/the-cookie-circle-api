@@ -8,10 +8,13 @@ from sqlalchemy.orm import Session
 from app.core.enums import OrderStatus, UserRole
 from app.core.exceptions import AuthError, ValidationError
 from app.core.security import hash_password, verify_password
+from app.repositories.refresh_token_repository import RefreshTokenRepository
+from app.services.security_audit import log_security_event
 from app.models.customer import Customer
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.models.order_product_line import OrderProductLine
+from app.models.order_review import OrderReview
 from app.models.user import User
 from app.repositories.customer_insights_repository import CustomerInsightsRepository
 from app.repositories.customer_repository import CustomerRepository
@@ -33,6 +36,7 @@ class ClientAccountService:
         self.db = db
         self.customers = CustomerRepository(db)
         self.users = UserRepository(db)
+        self.refresh_tokens = RefreshTokenRepository(db)
         self.orders = OrderRepository(db)
         self.insights = CustomerInsightsRepository(db)
         self.order_history = ClientOrderHistoryService(db)
@@ -76,7 +80,14 @@ class ClientAccountService:
         if not verify_password(payload.current_password, user.password_hash):
             raise ValidationError("Current password is incorrect")
         user.password_hash = hash_password(payload.new_password)
+        self.refresh_tokens.revoke_all_for_user(user.id)
+        self.users.bump_token_version(user)
         self.db.commit()
+        log_security_event(
+            "password_changed",
+            actor_id=user.id,
+            actor_role=user.role.value,
+        )
 
     def get_dashboard(self, customer: Customer, user: User) -> ClientAccountDashboardResponse:
         metrics = self.insights.get_metrics_for_customer(customer)
@@ -130,6 +141,15 @@ class ClientAccountService:
             or 0,
         )
 
+        total_reviews = int(
+            self.db.scalar(
+                select(func.count(OrderReview.id)).where(
+                    OrderReview.customer_id == customer.id,
+                ),
+            )
+            or 0,
+        )
+
         recent_orders, _ = self.order_history.list_orders(
             customer,
             page=1,
@@ -151,7 +171,7 @@ class ClientAccountService:
             pending_orders=pending_orders,
             total_cookies_ordered=cookie_count + selection_cookie_count,
             total_collections_ordered=collection_count,
-            total_amount_spent=metrics.lifetime_spend,
+            total_reviews=total_reviews,
             favourite_cookie=self.insights.get_favourite_product_name(customer.id),
             favourite_package_type=self.insights.get_favourite_collection_name(customer.id),
             recent_orders=recent_orders,

@@ -5,7 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.admin import get_current_admin_user, get_labour_charge_service
+from app.dependencies.admin import get_labour_charge_service
+from app.dependencies.permissions import require_super_admin
 from app.schemas.charge import (
     LabourChargeCreate,
     LabourChargeResponse,
@@ -17,7 +18,7 @@ from app.services.labour_charge_service import LabourChargeService
 router = APIRouter(
     prefix="/labour-charges",
     tags=["Labour Charges"],
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(require_super_admin)],
 )
 
 

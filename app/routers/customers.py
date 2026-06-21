@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
+from app.core.admin_access import can_view_financials
 from app.dependencies.admin import (
     get_current_admin_user,
     get_customer_communication_service,
@@ -29,6 +30,11 @@ from app.services.customer_communication_service import CustomerCommunicationSer
 from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
 from app.services.customer_service import CustomerService
+from app.services.financial_redaction import (
+    redact_customer_insights,
+    redact_customer_list,
+    redact_customer_order_row,
+)
 
 router = APIRouter(
     prefix="/customers",
@@ -39,11 +45,15 @@ router = APIRouter(
 
 @router.get("", response_model=PaginatedResponse[CustomerListItemResponse])
 def list_customers(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     params: Annotated[CustomerListParams, Depends()],
     service: Annotated[CustomerInsightsService, Depends(get_customer_insights_service)],
 ) -> PaginatedResponse[CustomerListItemResponse]:
     """List customers with CRM metrics, filters, and segments."""
-    return service.list_customers(params)
+    result = service.list_customers(params)
+    if not can_view_financials(current_user):
+        return redact_customer_list(result)
+    return result
 
 
 @router.post("", response_model=CustomerDetailResponse, status_code=status.HTTP_201_CREATED)
@@ -85,21 +95,29 @@ def delete_customer(
 
 @router.get("/{customer_id}/insights", response_model=CustomerInsightsResponse)
 def get_customer_insights(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     customer_id: uuid.UUID,
     service: Annotated[CustomerInsightsService, Depends(get_customer_insights_service)],
 ) -> CustomerInsightsResponse:
     """Calculated customer value and segment metrics."""
-    return service.get_insights(customer_id)
+    result = service.get_insights(customer_id)
+    if not can_view_financials(current_user):
+        return redact_customer_insights(result)
+    return result
 
 
 @router.get("/{customer_id}/orders", response_model=list[CustomerOrderHistoryItem])
 def get_customer_order_history(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     customer_id: uuid.UUID,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     service: Annotated[CustomerInsightsService, Depends(get_customer_insights_service)] = ...,
 ) -> list[CustomerOrderHistoryItem]:
     """Order history for a customer."""
-    return service.get_order_history(customer_id, limit=limit)
+    result = service.get_order_history(customer_id, limit=limit)
+    if not can_view_financials(current_user):
+        return [redact_customer_order_row(row) for row in result]
+    return result
 
 
 @router.get("/{customer_id}/notes", response_model=list[CustomerNoteResponse])

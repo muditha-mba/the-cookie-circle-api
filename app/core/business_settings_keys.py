@@ -1,5 +1,7 @@
 """Known business setting keys stored in the key-value settings table."""
 
+from app.core.social_platforms import SOCIAL_PLATFORMS, SocialPlatform
+
 DELIVERY_FEE = "delivery_fee"
 USE_FIXED_DELIVERY_FEE = "use_fixed_delivery_fee"
 ORDER_CUTOFF_DAY = "order_cutoff_day"
@@ -9,6 +11,23 @@ BUSINESS_EMAIL = "business_email"
 STRIPE_ENABLED = "stripe_enabled"
 BANK_TRANSFER_ENABLED = "bank_transfer_enabled"
 COD_ENABLED = "cod_enabled"
+SHARED_MEMORIES_ENABLED = "shared_memories_enabled"
+FAQS_ENABLED = "faqs_enabled"
+
+
+def social_url_key(platform: SocialPlatform) -> str:
+    return f"social_{platform}_url"
+
+
+def social_enabled_key(platform: SocialPlatform) -> str:
+    return f"social_{platform}_enabled"
+
+
+SOCIAL_KEYS: tuple[str, ...] = tuple(
+    key
+    for platform in SOCIAL_PLATFORMS
+    for key in (social_url_key(platform), social_enabled_key(platform))
+)
 
 ALL_KEYS = (
     DELIVERY_FEE,
@@ -20,4 +39,7 @@ ALL_KEYS = (
     STRIPE_ENABLED,
     BANK_TRANSFER_ENABLED,
     COD_ENABLED,
+    SHARED_MEMORIES_ENABLED,
+    FAQS_ENABLED,
+    *SOCIAL_KEYS,
 )

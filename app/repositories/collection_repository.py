@@ -17,6 +17,7 @@ from app.models.product import Product
 from app.models.product_recipe_line import ProductRecipeLine
 from app.models.tax_charge import TaxCharge
 from app.models.utility_charge import UtilityCharge
+from app.utils.search import ilike_contains
 
 
 class CollectionRepository:
@@ -99,10 +100,10 @@ class CollectionRepository:
         count_stmt = select(func.count()).select_from(Collection).outerjoin(Collection.package)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                Collection.name.ilike(pattern),
-                Collection.description.ilike(pattern),
+                Collection.name.ilike(pattern, escape=escape),
+                Collection.description.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

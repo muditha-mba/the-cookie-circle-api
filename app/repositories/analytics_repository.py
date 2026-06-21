@@ -70,6 +70,7 @@ class OrderKpiAggregate:
     total_revenue: Decimal
     total_profit: Decimal
     total_delivery_fees: Decimal
+    total_package_fees: Decimal
     cancelled_orders: int
 
 
@@ -493,12 +494,33 @@ class AnalyticsRepository:
             ),
         ).where(filt)
         row = self.db.execute(stmt).one()
+
+        package_fee_stmt = (
+            select(
+                func.coalesce(
+                    func.sum(
+                        OrderCollectionLine.package_fee_snapshot
+                        * OrderCollectionLine.quantity,
+                    ),
+                    0,
+                ),
+            )
+            .select_from(OrderCollectionLine)
+            .join(Order, Order.id == OrderCollectionLine.order_id)
+            .where(
+                filt,
+                OrderCollectionLine.package_fee_snapshot.isnot(None),
+            )
+        )
+        package_fees = Decimal(self.db.scalar(package_fee_stmt) or 0).quantize(MONEY)
+
         return OrderKpiAggregate(
             total_orders=int(row[0] or 0),
             completed_orders=int(row[1] or 0),
             total_revenue=Decimal(row[2] or 0).quantize(MONEY),
             total_profit=Decimal(row[3] or 0).quantize(MONEY),
             total_delivery_fees=Decimal(row[4] or 0).quantize(MONEY),
+            total_package_fees=package_fees,
             cancelled_orders=int(row[5] or 0),
         )
 

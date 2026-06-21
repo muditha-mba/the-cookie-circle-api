@@ -211,6 +211,7 @@ class OrderSummaryResponse(BaseModel):
     status: OrderStatus
     requested_delivery_date: date
     scheduled_delivery_date: date
+    delivery_area: DeliveryAreaSummary | None = None
     total_revenue_snapshot: Decimal
     total_profit_snapshot: Decimal
     created_at: datetime
@@ -235,7 +236,12 @@ class OrderDetailResponse(OrderDeliveryFields, OrderBillingFields):
     internal_notes: str | None
     requested_delivery_date: date
     scheduled_delivery_date: date
-    financial_performance: OrderFinancialPerformance
+    delivery_fee_snapshot: Decimal
+    delivery_cost_snapshot: Decimal
+    package_fee_revenue_snapshot: Decimal
+    packaging_cost_snapshot: Decimal
+    total_revenue_snapshot: Decimal
+    financial_performance: OrderFinancialPerformance | None = None
     product_lines: list[OrderProductLineResponse]
     collection_lines: list[OrderCollectionLineResponse]
     status_timeline: list[OrderStatusEventResponse]
@@ -265,6 +271,11 @@ class OrderPreviewResponse(BaseModel):
     products_subtotal_snapshot: Decimal
     collections_subtotal_snapshot: Decimal
     delivery_fee_snapshot: Decimal
+    delivery_cost_snapshot: Decimal
+    package_fee_revenue_snapshot: Decimal
+    packaging_cost_snapshot: Decimal
+    products_cost_snapshot: Decimal
+    collections_cost_snapshot: Decimal
     total_revenue_snapshot: Decimal
     total_cost_snapshot: Decimal
     total_profit_snapshot: Decimal

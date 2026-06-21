@@ -5,7 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.core.enums import AppContext, UserRole
+from app.core.enums import AdminRole, AppContext, UserRole
+from app.schemas.attribution import MarketingAttributionInput
 from app.schemas.fields import NormalizedEmail
 from app.utils.password import validate_password_strength
 
@@ -17,6 +18,8 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
+    captcha_token: str | None = Field(default=None, max_length=4096)
+    attribution: MarketingAttributionInput | None = None
 
     @field_validator("password")
     @classmethod
@@ -55,12 +58,14 @@ class ResendVerificationRequest(BaseModel):
     """Resend verification email request."""
 
     email: NormalizedEmail
+    captcha_token: str | None = Field(default=None, max_length=4096)
 
 
 class ForgotPasswordRequest(BaseModel):
     """Forgot password request."""
 
     email: NormalizedEmail
+    captcha_token: str | None = Field(default=None, max_length=4096)
 
 
 class ResetPasswordRequest(BaseModel):
@@ -87,6 +92,7 @@ class UserResponse(BaseModel):
     id: UUID
     email: EmailStr
     role: UserRole
+    admin_role: AdminRole | None = None
     first_name: str | None
     last_name: str | None
     email_verified: bool

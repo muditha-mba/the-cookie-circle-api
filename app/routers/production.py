@@ -7,12 +7,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
+from app.core.admin_access import can_view_financials
 from app.dependencies.admin import (
     get_current_admin_user,
     get_production_batch_service,
     get_production_planning_service,
     get_purchase_planning_service,
 )
+from app.dependencies.permissions import require_super_admin
+from app.models.user import User
 from app.schemas.production_batch import (
     ProductionBatchResponse,
     ProductionBatchUpdate,
@@ -30,6 +33,15 @@ from app.schemas.production import (
     ProductionOrderSummary,
     ProductionSummaryResponse,
     ProductDemandResponse,
+)
+from app.services.financial_redaction import (
+    redact_fulfillment_overview,
+    redact_ingredient_requirements,
+    redact_packaging_requirements,
+    redact_production_order_summary,
+    redact_production_summary,
+    redact_purchase_plan,
+    redact_purchase_plan_line,
 )
 from app.services.production_batch_service import ProductionBatchService
 from app.services.production_planning_service import ProductionPlanningService
@@ -56,20 +68,28 @@ def list_production_batches(
 
 @router.get("/summary", response_model=ProductionSummaryResponse)
 def get_production_summary(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     delivery_date: Annotated[date, Query(description="Scheduled delivery / production date")],
     service: Annotated[ProductionPlanningService, Depends(get_production_planning_service)] = ...,
 ) -> ProductionSummaryResponse:
     """Full production planning summary for a delivery date."""
-    return service.get_summary(delivery_date)
+    result = service.get_summary(delivery_date)
+    if not can_view_financials(current_user):
+        return redact_production_summary(result)
+    return result
 
 
 @router.get("/summary/orders", response_model=ProductionOrderSummary)
 def get_production_order_summary(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[ProductionPlanningService, Depends(get_production_planning_service)] = ...,
 ) -> ProductionOrderSummary:
     """Order fulfillment summary from financial snapshots."""
-    return service.get_order_summary(delivery_date)
+    result = service.get_order_summary(delivery_date)
+    if not can_view_financials(current_user):
+        return redact_production_order_summary(result)
+    return result
 
 
 @router.get("/product-demand", response_model=ProductDemandResponse)
@@ -83,29 +103,41 @@ def get_product_demand(
 
 @router.get("/ingredients", response_model=IngredientRequirementsResponse)
 def get_ingredient_requirements(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[ProductionPlanningService, Depends(get_production_planning_service)] = ...,
 ) -> IngredientRequirementsResponse:
     """Ingredient requirements from current product recipes."""
-    return service.get_ingredient_requirements(delivery_date)
+    result = service.get_ingredient_requirements(delivery_date)
+    if not can_view_financials(current_user):
+        return redact_ingredient_requirements(result)
+    return result
 
 
 @router.get("/packaging", response_model=PackagingRequirementsResponse)
 def get_packaging_requirements(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[ProductionPlanningService, Depends(get_production_planning_service)] = ...,
 ) -> PackagingRequirementsResponse:
     """Packaging requirements from current collection configurations."""
-    return service.get_packaging_requirements(delivery_date)
+    result = service.get_packaging_requirements(delivery_date)
+    if not can_view_financials(current_user):
+        return redact_packaging_requirements(result)
+    return result
 
 
 @router.get("/fulfillment", response_model=FulfillmentOverview)
 def get_fulfillment_overview(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[ProductionPlanningService, Depends(get_production_planning_service)] = ...,
 ) -> FulfillmentOverview:
     """Orders for a delivery date grouped by fulfillment status."""
-    return service.get_fulfillment_overview(delivery_date)
+    result = service.get_fulfillment_overview(delivery_date)
+    if not can_view_financials(current_user):
+        return redact_fulfillment_overview(result)
+    return result
 
 
 @router.get("/planning-batch", response_model=ProductionBatchResponse)
@@ -130,24 +162,33 @@ def update_planning_batch(
 
 @router.get("/purchase-plan", response_model=PurchasePlanResponse)
 def get_purchase_plan(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[PurchasePlanningService, Depends(get_purchase_planning_service)] = ...,
 ) -> PurchasePlanResponse:
     """Purchase planning list for a production date."""
-    return service.get_purchase_plan(delivery_date)
+    result = service.get_purchase_plan(delivery_date)
+    if not can_view_financials(current_user):
+        return redact_purchase_plan(result)
+    return result
 
 
 @router.patch("/purchase-plan/status", response_model=PurchasePlanLine)
 def update_purchase_plan_status(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
     payload: PurchasePlanStatusUpdate,
     service: Annotated[PurchasePlanningService, Depends(get_purchase_planning_service)] = ...,
 ) -> PurchasePlanLine:
     """Update purchase planning status for an item."""
-    return service.update_purchase_status(payload)
+    result = service.update_purchase_status(payload)
+    if not can_view_financials(current_user):
+        return redact_purchase_plan_line(result)
+    return result
 
 
 @router.get("/purchase-plan/export")
 def export_purchase_plan(
+    _: Annotated[User, Depends(require_super_admin)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[PurchasePlanningService, Depends(get_purchase_planning_service)] = ...,
 ) -> Response:
@@ -162,6 +203,7 @@ def export_purchase_plan(
 
 @router.get("/export")
 def export_production_summary(
+    _: Annotated[User, Depends(require_super_admin)],
     delivery_date: Annotated[date, Query()],
     service: Annotated[ProductionPlanningService, Depends(get_production_planning_service)] = ...,
 ) -> Response:

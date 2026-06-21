@@ -8,6 +8,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET_KEY = "change-me-in-production-use-a-long-random-secret"
 
+S3_BUCKET_BY_APP_ENV: dict[str, str] = {
+    "development": "the-cookie-circle-assets-dev",
+    "staging": "the-cookie-circle-assets-staging",
+    "production": "the-cookie-circle-assets-live",
+}
+
 
 class Settings(BaseSettings):
     """Central configuration for the API."""
@@ -89,6 +95,98 @@ class Settings(BaseSettings):
         description="E.164 digits only, no plus sign, for wa.me links",
     )
 
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_trust_proxy: bool = Field(default=False, alias="RATE_LIMIT_TRUST_PROXY")
+
+    trusted_hosts: str = Field(
+        default="localhost,127.0.0.1",
+        alias="TRUSTED_HOSTS",
+        description="Comma-separated hostnames allowed by TrustedHostMiddleware",
+    )
+
+    admin_allowed_ips: str = Field(
+        default="",
+        alias="ADMIN_ALLOWED_IPS",
+        description="Optional comma-separated admin API IP allowlist",
+    )
+
+    email_provider: Literal["console", "smtp", "resend"] = Field(
+        default="console",
+        alias="EMAIL_PROVIDER",
+    )
+    resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
+    email_from: str | None = Field(
+        default=None,
+        alias="EMAIL_FROM",
+        description='Sender address, e.g. "The Cookie Circle <hello@thecookiecircle.lk>"',
+    )
+    email_reply_to: str | None = Field(default=None, alias="EMAIL_REPLY_TO")
+    order_notification_email: str | None = Field(
+        default="hello@thecookiecircle.lk",
+        alias="ORDER_NOTIFICATION_EMAIL",
+        description="Internal inbox notified when a new order is created. Leave empty to disable.",
+    )
+    smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str | None = Field(default=None, alias="SMTP_USERNAME")
+    smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
+    smtp_from_email: str | None = Field(default=None, alias="SMTP_FROM_EMAIL")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+
+    turnstile_secret_key: str | None = Field(default=None, alias="TURNSTILE_SECRET_KEY")
+    captcha_required: bool = Field(default=False, alias="CAPTCHA_REQUIRED")
+
+    api_public_url: str = Field(
+        default="http://localhost:8000",
+        alias="API_PUBLIC_URL",
+        description="Public API base URL used for stable media links served by the API",
+    )
+
+    aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
+    aws_secret_access_key: str | None = Field(default=None, alias="AWS_SECRET_ACCESS_KEY")
+    aws_region: str = Field(default="ap-southeast-1", alias="AWS_REGION")
+    s3_bucket_name: str | None = Field(
+        default=None,
+        alias="S3_BUCKET_NAME",
+        description="Optional override. Defaults to the bucket for APP_ENV when unset.",
+    )
+    s3_shared_memories_prefix: str = Field(
+        default="shared-memories",
+        alias="S3_SHARED_MEMORIES_PREFIX",
+    )
+    s3_reviews_prefix: str = Field(
+        default="reviews",
+        alias="S3_REVIEWS_PREFIX",
+        description="S3 prefix reserved for future customer review image uploads",
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolved_s3_bucket_name(self) -> str | None:
+        explicit = (self.s3_bucket_name or "").strip()
+        if explicit:
+            return explicit
+        return S3_BUCKET_BY_APP_ENV.get(self.app_env)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def s3_enabled(self) -> bool:
+        return bool(
+            self.aws_access_key_id
+            and self.aws_secret_access_key
+            and self.resolved_s3_bucket_name,
+        )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def trusted_host_list(self) -> list[str]:
+        return [host.strip() for host in self.trusted_hosts.split(",") if host.strip()]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def admin_allowed_ip_list(self) -> list[str]:
+        return [ip.strip() for ip in self.admin_allowed_ips.split(",") if ip.strip()]
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origin_list(self) -> list[str]:
@@ -125,6 +223,39 @@ class Settings(BaseSettings):
                     "JWT_SECRET_KEY must be a secure random value of at least "
                     "32 characters in staging and production environments",
                 )
+
+        if self.app_env in ("production", "staging"):
+            if self.email_provider == "resend":
+                if not (self.resend_api_key or "").strip():
+                    raise ValueError(
+                        "RESEND_API_KEY is required when EMAIL_PROVIDER=resend "
+                        f"and APP_ENV={self.app_env}",
+                    )
+                if not (self.email_from or "").strip():
+                    raise ValueError(
+                        "EMAIL_FROM is required when EMAIL_PROVIDER=resend "
+                        f"and APP_ENV={self.app_env}",
+                    )
+            elif self.email_provider == "smtp":
+                if not self.smtp_host or not self.smtp_from_email:
+                    raise ValueError(
+                        "SMTP_HOST and SMTP_FROM_EMAIL are required when "
+                        f"EMAIL_PROVIDER=smtp and APP_ENV={self.app_env}",
+                    )
+            else:
+                raise ValueError(
+                    f"EMAIL_PROVIDER must be resend (recommended) or smtp when "
+                    f"APP_ENV={self.app_env}",
+                )
+
+        if self.is_production and self.debug:
+            raise ValueError("DEBUG must be false when APP_ENV=production")
+
+        if self.captcha_required and not (self.turnstile_secret_key or "").strip():
+            raise ValueError(
+                "TURNSTILE_SECRET_KEY is required when CAPTCHA_REQUIRED=true",
+            )
+
         return self
 
 

@@ -29,7 +29,10 @@ from app.services.package_pricing_service import (
     calculate_package_cost,
     calculate_package_selling_price,
 )
+from app.services.delivery_fee_service import resolve_delivery_cost
+from app.services.packaging_cost_service import calculate_packaging_materials_cost_per_pack
 from app.services.product_cost_service import _money, calculate_breakdown_for_product
+from app.utils.order_package_fee import package_fee_revenue_from_collection_lines
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,7 @@ class OrderProfitabilityService:
         product_lines: list[OrderProductLineInput],
         collection_lines: list[OrderCollectionLineInput],
         delivery_fee: Decimal,
+        is_pickup: bool = False,
     ) -> OrderSnapshotBuildResult:
         if not product_lines and not collection_lines:
             raise ValidationError("At least one product or collection line is required")
@@ -99,10 +103,20 @@ class OrderProfitabilityService:
                 Decimal("0"),
             ),
         )
+        package_fee_revenue = package_fee_revenue_from_collection_lines(built_collections)
+        packaging_cost = _money(
+            sum(
+                (line.packaging_cost_snapshot * line.quantity for line in built_collections),
+                Decimal("0"),
+            ),
+        )
 
         delivery = _money(delivery_fee)
+        delivery_cost = resolve_delivery_cost(delivery, is_pickup=is_pickup)
         total_revenue = _money(products_subtotal + collections_subtotal + delivery)
-        total_cost = _money(products_cost + collections_cost)
+        total_cost = _money(
+            products_cost + collections_cost + delivery_cost + packaging_cost,
+        )
         total_profit = _money(total_revenue - total_cost)
         margin = (
             _money((total_profit / total_revenue) * Decimal("100"))
@@ -114,6 +128,11 @@ class OrderProfitabilityService:
             products_subtotal_snapshot=products_subtotal,
             collections_subtotal_snapshot=collections_subtotal,
             delivery_fee_snapshot=delivery,
+            delivery_cost_snapshot=delivery_cost,
+            package_fee_revenue_snapshot=package_fee_revenue,
+            packaging_cost_snapshot=packaging_cost,
+            products_cost_snapshot=products_cost,
+            collections_cost_snapshot=collections_cost,
             total_revenue_snapshot=total_revenue,
             total_cost_snapshot=total_cost,
             total_profit_snapshot=total_profit,
@@ -130,20 +149,36 @@ class OrderProfitabilityService:
         order.products_subtotal_snapshot = result.financials.products_subtotal_snapshot
         order.collections_subtotal_snapshot = result.financials.collections_subtotal_snapshot
         order.delivery_fee_snapshot = result.financials.delivery_fee_snapshot
+        order.delivery_cost_snapshot = result.financials.delivery_cost_snapshot
+        order.package_fee_revenue_snapshot = result.financials.package_fee_revenue_snapshot
+        order.packaging_cost_snapshot = result.financials.packaging_cost_snapshot
         order.total_revenue_snapshot = result.financials.total_revenue_snapshot
         order.total_cost_snapshot = result.financials.total_cost_snapshot
         order.total_profit_snapshot = result.financials.total_profit_snapshot
         order.margin_percentage_snapshot = result.financials.margin_percentage_snapshot
 
-    def apply_delivery_fee_snapshot(self, order: Order, delivery_fee: Decimal) -> None:
+    def apply_delivery_fee_snapshot(
+        self,
+        order: Order,
+        delivery_fee: Decimal,
+        *,
+        is_pickup: bool,
+    ) -> None:
         delivery = _money(delivery_fee)
+        delivery_cost = resolve_delivery_cost(delivery, is_pickup=is_pickup)
         products = _money(order.products_subtotal_snapshot)
         collections = _money(order.collections_subtotal_snapshot)
+        packaging_cost = _money(order.packaging_cost_snapshot)
+        fulfillment_cost = _money(order.delivery_cost_snapshot + packaging_cost)
+        cookie_cost = _money(order.total_cost_snapshot - fulfillment_cost)
+        total_cost = _money(cookie_cost + delivery_cost + packaging_cost)
         total_revenue = _money(products + collections + delivery)
-        total_profit = _money(total_revenue - order.total_cost_snapshot)
+        total_profit = _money(total_revenue - total_cost)
 
         order.delivery_fee_snapshot = delivery
+        order.delivery_cost_snapshot = delivery_cost
         order.total_revenue_snapshot = total_revenue
+        order.total_cost_snapshot = total_cost
         order.total_profit_snapshot = total_profit
         order.margin_percentage_snapshot = (
             _money((total_profit / total_revenue) * Decimal("100"))
@@ -153,10 +188,30 @@ class OrderProfitabilityService:
 
     @staticmethod
     def financial_snapshot_from_order(order: Order) -> OrderFinancialSnapshot:
+        products_cost = _money(
+            sum(
+                (line.product_cost_snapshot * line.quantity for line in order.product_lines),
+                Decimal("0"),
+            ),
+        )
+        collections_cost = _money(
+            sum(
+                (
+                    line.collection_cost_snapshot * line.quantity
+                    for line in order.collection_lines
+                ),
+                Decimal("0"),
+            ),
+        )
         return OrderFinancialSnapshot(
             products_subtotal_snapshot=order.products_subtotal_snapshot,
             collections_subtotal_snapshot=order.collections_subtotal_snapshot,
             delivery_fee_snapshot=order.delivery_fee_snapshot,
+            delivery_cost_snapshot=order.delivery_cost_snapshot,
+            package_fee_revenue_snapshot=order.package_fee_revenue_snapshot,
+            packaging_cost_snapshot=order.packaging_cost_snapshot,
+            products_cost_snapshot=products_cost,
+            collections_cost_snapshot=collections_cost,
             total_revenue_snapshot=order.total_revenue_snapshot,
             total_cost_snapshot=order.total_cost_snapshot,
             total_profit_snapshot=order.total_profit_snapshot,
@@ -249,6 +304,7 @@ class OrderProfitabilityService:
         unit_price = calculate_package_selling_price(collection, per_pack)
         unit_cost = calculate_package_cost(per_pack)
         unit_profit = _money(unit_price - unit_cost)
+        packaging_cost_per_pack = calculate_packaging_materials_cost_per_pack(collection)
 
         return OrderCollectionLine(
             collection_id=collection.id,
@@ -258,6 +314,7 @@ class OrderProfitabilityService:
             collection_cost_snapshot=unit_cost,
             collection_profit_snapshot=unit_profit,
             package_fee_snapshot=_money(collection.package_fee),
+            packaging_cost_snapshot=packaging_cost_per_pack,
         )
 
     @staticmethod

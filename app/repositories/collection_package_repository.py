@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.collection import Collection
 from app.models.collection_package import CollectionPackage
+from app.utils.search import ilike_contains
 
 
 class CollectionPackageRepository:
@@ -61,11 +62,11 @@ class CollectionPackageRepository:
         count_stmt = select(func.count()).select_from(CollectionPackage)
 
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filter_clause = or_(
-                CollectionPackage.name.ilike(pattern),
-                CollectionPackage.code.ilike(pattern),
-                CollectionPackage.description.ilike(pattern),
+                CollectionPackage.name.ilike(pattern, escape=escape),
+                CollectionPackage.code.ilike(pattern, escape=escape),
+                CollectionPackage.description.ilike(pattern, escape=escape),
             )
             stmt = stmt.where(filter_clause)
             count_stmt = count_stmt.where(filter_clause)

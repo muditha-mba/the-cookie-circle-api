@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.enums import OrderType, PaymentMethod
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
+from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
 
 class WhatsAppOrderMessageService:
@@ -89,6 +90,9 @@ class WhatsAppOrderMessageService:
             lines.append(f"*Collections Subtotal:* {cls._format_lkr(order.collections_subtotal_snapshot)}")
         lines.append(f"*Delivery Fee:* {cls._format_lkr(order.delivery_fee_snapshot)}")
         lines.append(f"*Total:* {cls._format_lkr(order.total_revenue_snapshot)}")
+        premium_notice = premium_packaging_notice_from_collection_lines(order.collection_lines)
+        if premium_notice:
+            lines.append(f"🎁 {premium_notice}")
         lines.append(f"*Payment Method:* {cls._payment_method_label(order.payment_method)}")
 
         return "\n".join(lines)

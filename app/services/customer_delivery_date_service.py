@@ -1,22 +1,21 @@
 """Customer-facing delivery date rules (Sri Lanka timezone)."""
 
-from datetime import UTC, date, datetime, time, timedelta
+from __future__ import annotations
+
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from app.core.enums import OrderType
+from app.core.enums import OrderType, Weekday
 from app.core.exceptions import ValidationError
-
+from app.utils.delivery_schedule import DeliveryScheduleConfig, build_delivery_schedule_config
 SRI_LANKA_TZ = ZoneInfo("Asia/Colombo")
-WEEKLY_CUTOFF_WEEKDAY = 2  # Wednesday
-WEEKLY_CUTOFF_TIME = time(23, 59, 59)
-DELIVERY_WEEKDAY = 5  # Saturday
 
 CATERING_MIN_DAYS_AHEAD = 3
 CATERING_MIN_COOKIE_QUANTITY = 30
 
-WEEKLY_DELIVERY_EXPLANATION = (
-    "Orders placed before Wednesday 11:59 PM are delivered on the upcoming Saturday. "
-    "Orders placed after the cutoff are delivered on the following Saturday."
+DEFAULT_SCHEDULE_CONFIG = build_delivery_schedule_config(
+    cutoff_day=Weekday.THURSDAY,
+    delivery_day=Weekday.SATURDAY,
 )
 
 
@@ -30,39 +29,65 @@ class CustomerDeliveryDateService:
         return order_at.astimezone(SRI_LANKA_TZ)
 
     @classmethod
-    def is_before_weekly_cutoff(cls, order_at: datetime | None = None) -> bool:
+    def is_before_weekly_cutoff(
+        cls,
+        order_at: datetime | None = None,
+        *,
+        config: DeliveryScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
+    ) -> bool:
         local = cls.to_local(order_at or datetime.now(UTC))
-        if local.weekday() < WEEKLY_CUTOFF_WEEKDAY:
+        cutoff_index = config.cutoff_weekday_index
+        if local.weekday() < cutoff_index:
             return True
-        if local.weekday() > WEEKLY_CUTOFF_WEEKDAY:
+        if local.weekday() > cutoff_index:
             return False
-        return local.time() <= WEEKLY_CUTOFF_TIME
+        return local.time() <= config.cutoff_time
 
     @staticmethod
-    def week_saturday(reference: date) -> date:
+    def week_delivery_day(reference: date, delivery_weekday: int) -> date:
         monday = reference - timedelta(days=reference.weekday())
-        return monday + timedelta(days=DELIVERY_WEEKDAY)
+        return monday + timedelta(days=delivery_weekday)
 
     @classmethod
-    def next_saturday(cls, reference: date) -> date:
-        days = (DELIVERY_WEEKDAY - reference.weekday()) % 7
+    def next_delivery_day(
+        cls,
+        reference: date,
+        *,
+        config: DeliveryScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
+    ) -> date:
+        delivery_index = config.delivery_weekday_index
+        days = (delivery_index - reference.weekday()) % 7
         if days == 0:
             days = 7
         return reference + timedelta(days=days)
 
     @classmethod
-    def calculate_weekly_delivery_date(cls, order_at: datetime | None = None) -> date:
-        """Assign the next applicable Saturday batch for weekly cookie delivery."""
+    def calculate_weekly_delivery_date(
+        cls,
+        order_at: datetime | None = None,
+        *,
+        config: DeliveryScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
+    ) -> date:
+        """Assign the next applicable delivery batch for weekly cookie delivery."""
         local = cls.to_local(order_at or datetime.now(UTC))
         order_date = local.date()
-        this_week_sat = cls.week_saturday(order_date)
+        this_week_delivery = cls.week_delivery_day(
+            order_date,
+            config.delivery_weekday_index,
+        )
 
-        if cls.is_before_weekly_cutoff(order_at):
-            if order_date <= this_week_sat:
-                return this_week_sat
-            return cls.week_saturday(order_date + timedelta(days=7))
+        if cls.is_before_weekly_cutoff(order_at, config=config):
+            if order_date <= this_week_delivery:
+                return this_week_delivery
+            return cls.week_delivery_day(
+                order_date + timedelta(days=7),
+                config.delivery_weekday_index,
+            )
 
-        return cls.week_saturday(order_date + timedelta(days=7))
+        return cls.week_delivery_day(
+            order_date + timedelta(days=7),
+            config.delivery_weekday_index,
+        )
 
     @classmethod
     def calculate_catering_earliest_date(cls, from_date: date | None = None) -> date:
@@ -92,9 +117,10 @@ class CustomerDeliveryDateService:
         order_type: OrderType,
         requested_date: date | None,
         order_at: datetime | None = None,
+        config: DeliveryScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
     ) -> date:
         if order_type == OrderType.WEEKLY_DELIVERY:
-            return cls.calculate_weekly_delivery_date(order_at)
+            return cls.calculate_weekly_delivery_date(order_at, config=config)
 
         if requested_date is None:
             raise ValidationError("Catering orders require a delivery date.")

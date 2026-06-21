@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.product_item import ProductItem
 from app.models.product_item_type import ProductItemType
+from app.utils.search import ilike_contains
 
 
 class ProductItemRepository:
@@ -124,12 +125,12 @@ class ProductItemRepository:
 
         filters = []
         if search:
-            pattern = f"%{search.strip()}%"
+            pattern, escape = ilike_contains(search)
             filters.append(
                 or_(
-                    ProductItem.name.ilike(pattern),
-                    ProductItem.description.ilike(pattern),
-                    ProductItem.purchase_unit.ilike(pattern),
+                    ProductItem.name.ilike(pattern, escape=escape),
+                    ProductItem.description.ilike(pattern, escape=escape),
+                    ProductItem.purchase_unit.ilike(pattern, escape=escape),
                 ),
             )
         if item_type_id is not None:
