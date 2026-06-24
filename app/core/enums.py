@@ -142,6 +142,17 @@ class PaymentStatus(str, enum.Enum):
     REFUNDED = "refunded"
 
 
+class PaymentSessionStatus(str, enum.Enum):
+    """WebXPay payment session lifecycle state."""
+
+    INITIATED = "initiated"      # Session created; redirect payload ready
+    REDIRECTED = "redirected"    # Customer was sent to WebXPay billing page
+    COMPLETED = "completed"      # WebXPay confirmed payment approved — terminal
+    FAILED = "failed"            # WebXPay reported payment declined — terminal (retry allowed)
+    EXPIRED = "expired"          # Session timed out before callback received — terminal
+    TAMPERED = "tampered"        # Return payload failed integrity check — terminal (critical alert)
+
+
 class ReviewItemSentiment(str, enum.Enum):
     """Per-item thumbs feedback within an order review."""
 

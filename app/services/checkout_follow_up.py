@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from decimal import Decimal
 from typing import Literal
 
@@ -22,8 +23,9 @@ _ONLINE_PAYMENT_METHODS = frozenset(
 )
 
 
-def assert_online_payment_not_implemented(payment_method: PaymentMethod) -> None:
-    if payment_method in _ONLINE_PAYMENT_METHODS:
+def assert_online_payment_enabled(payment_method: PaymentMethod) -> None:
+    """Raise ValidationError if online payment is selected but WebXPay is not enabled."""
+    if payment_method in _ONLINE_PAYMENT_METHODS and not settings.webxpay_enabled:
         from app.core.exceptions import ValidationError
 
         raise ValidationError(
@@ -54,8 +56,10 @@ def build_checkout_response(
     business_settings: BusinessSettingsResponse,
     account_created: bool,
     verification_sent: bool,
+    payment_session_id: uuid.UUID | None = None,
 ) -> ClientCheckoutResponse:
     client_base = settings.frontend_client_url.rstrip("/")
+    api_base = settings.api_public_url.rstrip("/")
     account_order_url = f"{client_base}/account/orders/{order.id}"
     payment_method = order.payment_method
 
@@ -106,6 +110,13 @@ def build_checkout_response(
             message="Order placed successfully. Complete your order on WhatsApp when ready.",
         )
 
+    # Online payment path (ONLINE_CARD or ONLINE_BANK_DEBIT)
+    payment_initiate_url: str | None = None
+    if payment_session_id is not None:
+        payment_initiate_url = (
+            f"{api_base}/api/v1/payments/webxpay/initiate/{payment_session_id}"
+        )
+
     return ClientCheckoutResponse(
         order_id=order.id,
         order_number=order.order_number,
@@ -114,9 +125,10 @@ def build_checkout_response(
         total_revenue_snapshot=order.total_revenue_snapshot,
         account_order_url=account_order_url,
         redirect_to="online_payment",
+        payment_initiate_url=payment_initiate_url,
         account_created=account_created,
         verification_email_sent=verification_sent,
-        message="Online payment will be available soon.",
+        message="Redirecting you to secure payment…",
     )
 
 

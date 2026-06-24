@@ -272,6 +272,10 @@ class ClientCheckoutResponse(BaseModel):
     account_order_url: str | None = None
     bank_transfer_instructions: ClientBankTransferInstructions | None = None
     redirect_to: Literal["whatsapp", "account_order", "online_payment"]
+    # Present only when redirect_to == "online_payment".
+    # The client navigates the browser to this URL; the API endpoint at this URL
+    # serves an HTML page with an auto-submitting form directed to WebXPay.
+    payment_initiate_url: str | None = None
     account_created: bool = False
     verification_email_sent: bool = False
     message: str

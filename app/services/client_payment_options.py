@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.core.config import settings as app_settings
 from app.core.enums import OrderType, PaymentMethod
 from app.core.exceptions import ValidationError
 from app.schemas.business_settings import BusinessSettingsResponse
@@ -14,6 +15,10 @@ _PAYMENT_METHOD_LABELS: dict[PaymentMethod, str] = {
     PaymentMethod.ONLINE_BANK_DEBIT: "Pay from my bank account (OTP)",
     PaymentMethod.MANUAL: "Manual",
 }
+
+_ONLINE_PAYMENT_METHODS: frozenset[PaymentMethod] = frozenset(
+    {PaymentMethod.ONLINE_CARD, PaymentMethod.ONLINE_BANK_DEBIT}
+)
 
 _CLIENT_PAYMENT_METHOD_ORDER: tuple[PaymentMethod, ...] = (
     PaymentMethod.ONLINE_CARD,
@@ -36,10 +41,13 @@ def get_enabled_payment_methods(settings: BusinessSettingsResponse) -> set[Payme
         allowed.add(PaymentMethod.CASH_ON_DELIVERY)
     if settings.bank_transfer_enabled:
         allowed.add(PaymentMethod.BANK_TRANSFER)
-    if settings.online_card_enabled:
-        allowed.add(PaymentMethod.ONLINE_CARD)
-    if settings.online_bank_debit_enabled:
-        allowed.add(PaymentMethod.ONLINE_BANK_DEBIT)
+    # Online methods are only surfaced when the WebXPay gateway is enabled globally.
+    # This prevents customers from seeing unavailable options before go-live.
+    if app_settings.webxpay_enabled:
+        if settings.online_card_enabled:
+            allowed.add(PaymentMethod.ONLINE_CARD)
+        if settings.online_bank_debit_enabled:
+            allowed.add(PaymentMethod.ONLINE_BANK_DEBIT)
     return allowed
 
 

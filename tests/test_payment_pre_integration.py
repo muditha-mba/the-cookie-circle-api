@@ -1,6 +1,7 @@
 """Payments pre-integration validation tests."""
 
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 
@@ -8,7 +9,7 @@ from app.core.enums import OrderType, PaymentMethod
 from app.core.exceptions import ValidationError
 from app.schemas.business_settings import BankTransferDetailsResponse, BusinessSettingsResponse
 from app.core.enums import Weekday
-from app.services.checkout_follow_up import assert_online_payment_not_implemented
+from app.services.checkout_follow_up import assert_online_payment_enabled
 from app.services.client_payment_options import (
     get_client_payment_method_options,
     validate_client_payment_method,
@@ -61,7 +62,10 @@ def test_catering_allows_bank_transfer_when_enabled() -> None:
 
 def test_weekly_delivery_respects_enabled_toggles() -> None:
     settings = _settings(online_card_enabled=True)
-    methods = get_client_payment_method_options(settings, OrderType.WEEKLY_DELIVERY)
+    # Patch webxpay_enabled=True so the online method is surfaced
+    with patch("app.services.client_payment_options.app_settings") as mock_settings:
+        mock_settings.webxpay_enabled = True
+        methods = get_client_payment_method_options(settings, OrderType.WEEKLY_DELIVERY)
     codes = {method.code for method in methods}
     assert PaymentMethod.ONLINE_CARD in codes
     assert PaymentMethod.BANK_TRANSFER in codes
@@ -75,9 +79,25 @@ def test_catering_checkout_options_only_bank_transfer() -> None:
     assert methods[0].code == PaymentMethod.BANK_TRANSFER
 
 
-def test_online_payment_not_implemented_guard() -> None:
-    with pytest.raises(ValidationError, match="not available yet"):
-        assert_online_payment_not_implemented(PaymentMethod.ONLINE_CARD)
+def test_online_payment_disabled_guard() -> None:
+    # When WEBXPAY_ENABLED=false, assert_online_payment_enabled must raise
+    with patch("app.services.checkout_follow_up.settings") as mock_settings:
+        mock_settings.webxpay_enabled = False
+        with pytest.raises(ValidationError, match="not available yet"):
+            assert_online_payment_enabled(PaymentMethod.ONLINE_CARD)
+
+
+def test_online_payment_enabled_guard_passes() -> None:
+    # When WEBXPAY_ENABLED=true, assert_online_payment_enabled must not raise
+    with patch("app.services.checkout_follow_up.settings") as mock_settings:
+        mock_settings.webxpay_enabled = True
+        assert_online_payment_enabled(PaymentMethod.ONLINE_CARD)  # should not raise
+
+
+def test_online_payment_non_online_method_not_blocked() -> None:
+    # COD and bank transfer are never blocked by the WebXPay guard
+    assert_online_payment_enabled(PaymentMethod.CASH_ON_DELIVERY)
+    assert_online_payment_enabled(PaymentMethod.BANK_TRANSFER)
 
 
 def test_weekly_rejects_disabled_payment_method() -> None:

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.order_product_line import OrderProductLine
     from app.models.order_status_event import OrderStatusEvent
     from app.models.order_review import OrderReview
+    from app.models.payment_session import PaymentSession
 
 
 class Order(Base, TimestampMixin):
@@ -205,4 +206,10 @@ class Order(Base, TimestampMixin):
         back_populates="order",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+    payment_sessions: Mapped[list["PaymentSession"]] = relationship(
+        "PaymentSession",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="PaymentSession.initiated_at",
     )

@@ -26,6 +26,7 @@ PUBLIC_PREFIXES = (
     "/api/v1/auth/verify-email",
     "/api/v1/auth/resend-verification",
     "/api/v1/client",
+    "/api/v1/payments",
 )
 
 SKIP_ACTIVITY_PREFIXES = (

@@ -163,9 +163,9 @@ def checkout_client_order(
     request: Request,
     service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
 ) -> ClientCheckoutResponse:
-    """Place a website order and receive a WhatsApp handoff URL."""
+    """Place a website order. Returns redirect instructions for the chosen payment method."""
     verify_captcha_token(payload.captcha_token, remote_ip=get_client_ip(request))
-    return service.checkout(payload)
+    return service.checkout(payload, client_ip=get_client_ip(request))
 
 
 @router.get("/auth/check-email", response_model=EmailAvailabilityResponse)

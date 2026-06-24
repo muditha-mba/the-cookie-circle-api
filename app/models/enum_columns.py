@@ -22,6 +22,7 @@ from app.core.enums import (
     OrderStatus,
     OrderType,
     PaymentMethod,
+    PaymentSessionStatus,
     PaymentStatus,
     ProductionBatchStatus,
     PurchasePlanningStatus,
@@ -93,6 +94,12 @@ payment_method_enum = Enum(
 payment_status_enum = Enum(
     PaymentStatus,
     name="payment_status",
+    values_callable=_enum_values,
+)
+
+payment_session_status_enum = Enum(
+    PaymentSessionStatus,
+    name="payment_session_status",
     values_callable=_enum_values,
 )
 

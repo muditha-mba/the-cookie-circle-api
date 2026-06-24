@@ -46,6 +46,7 @@ from app.routers.discount_rules import router as discount_rules_router
 from app.routers.discounts import router as discounts_router
 from app.routers.promotion_slides import router as promotion_slides_router
 from app.routers.client_promotions import router as client_promotions_router
+from app.routers.payments import router as payments_router
 
 
 @asynccontextmanager
@@ -117,6 +118,7 @@ def create_app() -> FastAPI:
     app.include_router(discounts_router, prefix=settings.api_v1_prefix)
     app.include_router(promotion_slides_router, prefix=settings.api_v1_prefix)
     app.include_router(client_promotions_router, prefix=settings.api_v1_prefix)
+    app.include_router(payments_router, prefix=settings.api_v1_prefix)
 
     return app
 

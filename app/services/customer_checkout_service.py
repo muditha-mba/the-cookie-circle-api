@@ -56,7 +56,7 @@ from app.services.order_notification_service import notify_team_new_order
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.business_setting_service import BusinessSettingService
 from app.services.checkout_follow_up import (
-    assert_online_payment_not_implemented,
+    assert_online_payment_enabled,
     build_checkout_response,
     order_confirmation_include_whatsapp_cta,
     order_confirmation_intro,
@@ -207,7 +207,12 @@ class CustomerCheckoutService:
             ],
         )
 
-    def checkout(self, payload: ClientCheckoutRequest) -> ClientCheckoutResponse:
+    def checkout(
+        self,
+        payload: ClientCheckoutRequest,
+        *,
+        client_ip: str | None = None,
+    ) -> ClientCheckoutResponse:
         if payload.create_account:
             if self.users.get_by_email(normalize_email(payload.customer.email)):
                 raise ConflictError("An account with this email already exists.")
@@ -215,7 +220,7 @@ class CustomerCheckoutService:
         validated = self._validate_request(payload)
         settings = self.settings.get_settings()
         validate_client_payment_method(settings, payload.payment_method, payload.order_type)
-        assert_online_payment_not_implemented(payload.payment_method)
+        assert_online_payment_enabled(payload.payment_method)
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
 
@@ -322,6 +327,17 @@ class CustomerCheckoutService:
         except Exception:  # noqa: BLE001
             pass  # Rule evaluation failure must never block checkout
 
+        # Create WebXPay payment session for online payment methods.
+        # Done after order commit so the session always references a persisted order.
+        payment_session_id = None
+        if payload.payment_method in {PaymentMethod.ONLINE_CARD, PaymentMethod.ONLINE_BANK_DEBIT}:
+            from app.services.webxpay.webxpay_service import WebXPayService
+
+            webxpay = WebXPayService(self.db)
+            payment_session = webxpay.create_session(loaded, ip_address=client_ip)
+            self.db.commit()
+            payment_session_id = payment_session.id
+
         whatsapp_url = (
             WhatsAppOrderMessageService.build_whatsapp_url(loaded)
             if order_confirmation_include_whatsapp_cta(loaded.payment_method)
@@ -375,6 +391,7 @@ class CustomerCheckoutService:
             business_settings=settings,
             account_created=account_created,
             verification_sent=verification_sent,
+            payment_session_id=payment_session_id,
         )
 
     def _validate_request(self, payload: ClientOrderPreviewRequest) -> ValidatedOrderRequest:

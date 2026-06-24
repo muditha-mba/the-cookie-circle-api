@@ -33,6 +33,7 @@ from app.models.order_collection_line_selection import OrderCollectionLineSelect
 from app.models.order_product_line import OrderProductLine
 from app.models.order_status_event import OrderStatusEvent
 from app.models.password_reset_token import PasswordResetToken
+from app.models.payment_session import PaymentSession
 from app.models.product import Product
 from app.models.inventory_consumption_proposal import InventoryConsumptionProposal
 from app.models.inventory_consumption_proposal_line import InventoryConsumptionProposalLine
@@ -97,6 +98,7 @@ __all__ = [
     "OrderProductLine",
     "OrderStatusEvent",
     "PasswordResetToken",
+    "PaymentSession",
     "Product",
     "ProductItem",
     "ProductItemType",

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
+from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentSessionStatus, PaymentStatus
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.order_profitability import OrderFinancialSnapshot
@@ -205,6 +205,19 @@ class OrderInventoryConsumptionSummary(BaseModel):
     pending_proposal_id: UUID | None
 
 
+class OrderPaymentSessionSummary(BaseModel):
+    """Most recent WebXPay payment session summary for admin display."""
+
+    session_id: UUID
+    status: PaymentSessionStatus
+    amount: Decimal
+    gateway_reference: str | None = None
+    initiated_at: datetime
+    completed_at: datetime | None = None
+    failed_at: datetime | None = None
+    failure_reason: str | None = None
+
+
 class OrderSummaryResponse(BaseModel):
     """Order list item."""
 
@@ -257,6 +270,8 @@ class OrderDetailResponse(OrderDeliveryFields, OrderBillingFields):
     status_timeline: list[OrderStatusEventResponse]
     lifecycle: OrderLifecycleTimestamps
     inventory_consumption: OrderInventoryConsumptionSummary
+    # Present only for orders with online payment methods that have a payment session.
+    payment_session: OrderPaymentSessionSummary | None = None
     customer_review: OrderReviewSummaryEmbed | None = None
     created_at: datetime
     updated_at: datetime

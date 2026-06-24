@@ -38,6 +38,7 @@ from app.schemas.order import (
     OrderFinancialPerformance,
     OrderInventoryConsumptionSummary,
     OrderLifecycleTimestamps,
+    OrderPaymentSessionSummary,
     OrderPreviewRequest,
     OrderPreviewResponse,
     OrderProductLineInput,
@@ -673,7 +674,28 @@ class OrderService:
                     order.id,
                 ),
             ),
+            payment_session=_latest_payment_session_summary(order),
             customer_review=customer_review,
             created_at=order.created_at,
             updated_at=order.updated_at,
         )
+
+
+def _latest_payment_session_summary(order: "Order") -> OrderPaymentSessionSummary | None:
+    """Return a summary of the most recent payment session for admin display, if any."""
+    from app.models.payment_session import PaymentSession  # avoid circular at module level
+
+    sessions: list[PaymentSession] = order.payment_sessions
+    if not sessions:
+        return None
+    latest = max(sessions, key=lambda s: s.initiated_at)
+    return OrderPaymentSessionSummary(
+        session_id=latest.id,
+        status=latest.status,
+        amount=latest.amount,
+        gateway_reference=latest.gateway_reference,
+        initiated_at=latest.initiated_at,
+        completed_at=latest.completed_at,
+        failed_at=latest.failed_at,
+        failure_reason=latest.failure_reason,
+    )
