@@ -26,6 +26,7 @@ from app.services.analytics.analytics_product_service import AnalyticsProductSer
 from app.services.analytics.analytics_production_service import AnalyticsProductionService
 from app.services.analytics.analytics_production_ux_service import AnalyticsProductionUxService
 from app.services.analytics.analytics_revenue_service import AnalyticsRevenueService
+from app.services.overhead_analytics_service import OverheadAnalyticsService
 from app.services.customer_communication_service import CustomerCommunicationService
 from app.services.customer_insights_service import CustomerInsightsService
 from app.services.customer_note_service import CustomerNoteService
@@ -33,6 +34,11 @@ from app.services.customer_service import CustomerService
 from app.services.delivery_area_service import DeliveryAreaService
 from app.services.faq_category_service import FaqCategoryService
 from app.services.faq_service import FaqService
+from app.services.consumption_proposal_service import ConsumptionProposalService
+from app.services.inventory_balance_service import InventoryBalanceService
+from app.services.inventory_lot_service import InventoryLotService
+from app.services.inventory_movement_service import InventoryMovementService
+from app.services.purchase_receipt_service import PurchaseReceiptService
 from app.services.shared_memory_service import SharedMemoryService
 from app.services.dashboard_service import DashboardService
 from app.services.order_service import OrderService
@@ -48,6 +54,11 @@ from app.services.product_service import ProductService
 from app.services.tax_charge_service import TaxChargeService
 from app.services.activity_log_service import ActivityLogService
 from app.services.utility_charge_service import UtilityChargeService
+from app.services.customer_discount_grant_service import CustomerDiscountGrantService
+from app.services.customer_discount_override_service import CustomerDiscountOverrideService
+from app.services.discount_audit_service import DiscountAuditService
+from app.services.discount_rule_service import DiscountRuleService
+from app.services.promotion_slide_service import PromotionSlideService
 
 
 def get_current_admin_user(
@@ -88,6 +99,36 @@ def get_tax_charge_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> TaxChargeService:
     return TaxChargeService(db)
+
+
+def get_discount_rule_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> DiscountRuleService:
+    return DiscountRuleService(db)
+
+
+def get_customer_discount_grant_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerDiscountGrantService:
+    return CustomerDiscountGrantService(db)
+
+
+def get_customer_discount_override_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> CustomerDiscountOverrideService:
+    return CustomerDiscountOverrideService(db)
+
+
+def get_discount_audit_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> DiscountAuditService:
+    return DiscountAuditService(db)
+
+
+def get_promotion_slide_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> PromotionSlideService:
+    return PromotionSlideService(db)
 
 
 def get_product_service(
@@ -258,6 +299,12 @@ def get_analytics_export_service(
     return AnalyticsExportService(db)
 
 
+def get_overhead_analytics_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> OverheadAnalyticsService:
+    return OverheadAnalyticsService(db)
+
+
 def get_faq_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> FaqService:
@@ -280,3 +327,49 @@ def get_activity_log_service(
     db: Annotated[Session, Depends(get_db)],
 ) -> ActivityLogService:
     return ActivityLogService(db)
+
+
+def get_inventory_balance_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryBalanceService:
+    return InventoryBalanceService(db)
+
+
+def get_inventory_lot_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryLotService:
+    return InventoryLotService(db)
+
+
+def get_inventory_movement_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> InventoryMovementService:
+    return InventoryMovementService(db)
+
+
+def get_purchase_receipt_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> PurchaseReceiptService:
+    return PurchaseReceiptService(db)
+
+
+def get_consumption_proposal_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> ConsumptionProposalService:
+    return ConsumptionProposalService(db)
+
+
+def get_inventory_readiness_service(
+    db: Annotated[Session, Depends(get_db)],
+):
+    from app.services.inventory_readiness_service import InventoryReadinessService
+
+    return InventoryReadinessService(db)
+
+
+def get_inventory_expense_service(
+    db: Annotated[Session, Depends(get_db)],
+):
+    from app.services.inventory_expense_service import InventoryExpenseService
+
+    return InventoryExpenseService(db)

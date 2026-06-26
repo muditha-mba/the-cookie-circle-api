@@ -1089,9 +1089,8 @@ def assign_status_and_payment(rng: random.Random, scheduled_date: date) -> tuple
         rng,
         [
             (PaymentMethod.CASH_ON_DELIVERY, 46),
-            (PaymentMethod.BANK_TRANSFER, 28),
+            (PaymentMethod.BANK_TRANSFER, 34),
             (PaymentMethod.MANUAL, 20),
-            (PaymentMethod.STRIPE, 6),
         ],
     )
 
@@ -1313,7 +1312,6 @@ def create_orders(
                 (PaymentMethod.CASH_ON_DELIVERY, 44),
                 (PaymentMethod.BANK_TRANSFER, 30),
                 (PaymentMethod.MANUAL, 20),
-                (PaymentMethod.STRIPE, 6),
             ],
         )
         pay_status = weighted_choice(

@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import OrderSource, OrderStatus, OrderType, PaymentMethod, PaymentStatus
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.order_product_line import OrderProductLine
     from app.models.order_status_event import OrderStatusEvent
     from app.models.order_review import OrderReview
+    from app.models.payment_session import PaymentSession
 
 
 class Order(Base, TimestampMixin):
@@ -122,14 +123,63 @@ class Order(Base, TimestampMixin):
         server_default="0",
     )
     total_revenue_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    total_tax_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=Decimal("0"),
+        server_default="0",
+    )
+    tax_lines_snapshot: Mapped[list] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default="'[]'",
+    )
     total_cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     total_profit_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     margin_percentage_snapshot: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    pre_discount_subtotal_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
+    discount_amount_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+        default=Decimal("0"),
+    )
+    discount_type_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    discount_value_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    discount_source_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    discount_rule_id_snapshot: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    customer_discount_grant_id_snapshot: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    gross_revenue_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        server_default="0",
+    )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     preparing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    inventory_consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    inventory_consumption_proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("inventory_consumption_proposals.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="orders")
     delivery_area: Mapped["DeliveryArea | None"] = relationship("DeliveryArea", back_populates="orders")
@@ -156,4 +206,10 @@ class Order(Base, TimestampMixin):
         back_populates="order",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+    payment_sessions: Mapped[list["PaymentSession"]] = relationship(
+        "PaymentSession",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="PaymentSession.initiated_at",
     )

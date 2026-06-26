@@ -32,7 +32,7 @@ from app.repositories.delivery_area_repository import DeliveryAreaRepository
 from app.repositories.order_repository import OrderRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.business_settings import BusinessSettingsResponse
+from app.services.client_payment_options import validate_client_payment_method
 from app.schemas.client_ordering import (
     ClientCheckoutRequest,
     ClientCheckoutResponse,
@@ -55,6 +55,12 @@ from app.services.delivery_schedule_copy_service import (
 from app.services.order_notification_service import notify_team_new_order
 from app.services.customer_identity_service import CustomerIdentityService
 from app.services.business_setting_service import BusinessSettingService
+from app.services.checkout_follow_up import (
+    assert_online_payment_enabled,
+    build_checkout_response,
+    order_confirmation_include_whatsapp_cta,
+    order_confirmation_intro,
+)
 from app.services.collection_selection_validator import CollectionSelectionValidator
 from app.services.customer_delivery_date_service import (
     CATERING_MIN_COOKIE_QUANTITY,
@@ -63,6 +69,9 @@ from app.services.customer_delivery_date_service import (
 from app.services.delivery_fee_service import is_pickup_delivery_area, resolve_delivery_fee
 from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
+from app.services.discount_application_service import DiscountApplicationService
+from app.services.discount_rule_evaluator import DiscountRuleEvaluator
+from app.utils.discount_format import format_discount_label
 from app.utils.email import normalize_email
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
@@ -90,7 +99,7 @@ class ValidatedOrderRequest:
 
 
 class CustomerCheckoutService:
-    """Public checkout without payment gateway integration."""
+    """Public checkout; online gateway redirect is added in the WebXPay integration phase."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -138,16 +147,29 @@ class CustomerCheckoutService:
         unit_price = calculate_package_selling_price(collection, per_pack)
         return ClientCollectionQuoteResponse(unit_price=unit_price)
 
-    def preview(self, payload: ClientOrderPreviewRequest) -> ClientOrderPreviewResponse:
+    def preview(
+        self,
+        payload: ClientOrderPreviewRequest,
+        *,
+        customer_id: uuid.UUID | None = None,
+    ) -> ClientOrderPreviewResponse:
         validated = self._validate_request(payload)
         settings = self.settings.get_settings()
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
+
+        # Resolve discount for authenticated customers on preview (server-side only).
+        discount_grant = None
+        if customer_id is not None:
+            discount_app = DiscountApplicationService(self.db)
+            discount_grant = discount_app.resolve_grant_for_customer(customer_id)
+
         snapshot_result = self._build_snapshots(
             payload,
             validated,
             delivery_fee,
             is_pickup=is_pickup_delivery_area(delivery_area),
+            discount_grant=discount_grant,
         )
 
         explanation = (
@@ -185,24 +207,36 @@ class CustomerCheckoutService:
             ],
         )
 
-    def checkout(self, payload: ClientCheckoutRequest) -> ClientCheckoutResponse:
+    def checkout(
+        self,
+        payload: ClientCheckoutRequest,
+        *,
+        client_ip: str | None = None,
+    ) -> ClientCheckoutResponse:
         if payload.create_account:
             if self.users.get_by_email(normalize_email(payload.customer.email)):
                 raise ConflictError("An account with this email already exists.")
 
         validated = self._validate_request(payload)
         settings = self.settings.get_settings()
-        self._validate_payment_method(settings, payload.payment_method)
+        validate_client_payment_method(settings, payload.payment_method, payload.order_type)
+        assert_online_payment_enabled(payload.payment_method)
         delivery_area = self._get_delivery_area(payload.delivery_area_id)
         delivery_fee = resolve_delivery_fee(settings, delivery_area)
+
+        # Resolve and lock the discount grant server-side (never trust client data)
+        customer = self._resolve_customer(payload)
+        discount_app = DiscountApplicationService(self.db)
+        discount_grant = discount_app.resolve_grant_for_customer(customer.id)
+
         snapshot_result = self._build_snapshots(
             payload,
             validated,
             delivery_fee,
             is_pickup=is_pickup_delivery_area(delivery_area),
+            discount_grant=discount_grant,
         )
 
-        customer = self._resolve_customer(payload)
         CustomerAttributionService.apply_first_touch(customer, payload.attribution)
         shipping = payload.customer.shipping_address
         billing = (
@@ -243,6 +277,12 @@ class CustomerCheckoutService:
             billing_landmark=billing.landmark,
         )
         self.profitability.apply_snapshots_to_order(order, snapshot_result)
+
+        # Link the grant on the order snapshot
+        if discount_grant is not None:
+            order.customer_discount_grant_id_snapshot = discount_grant.id
+            order.discount_rule_id_snapshot = discount_grant.discount_rule_id
+
         order.collection_lines = snapshot_result.collection_lines
         order.product_lines = snapshot_result.product_lines
         order.status_events = [OrderStatusEvent(status=OrderStatus.PENDING)]
@@ -251,6 +291,10 @@ class CustomerCheckoutService:
 
         self.orders.create(order)
         self.db.flush()
+
+        # Mark grant used atomically within the same transaction
+        if discount_grant is not None:
+            discount_app.mark_grant_used(discount_grant, order.id)
 
         account_created = False
         verification_sent = False
@@ -274,7 +318,31 @@ class CustomerCheckoutService:
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
 
-        whatsapp_url = WhatsAppOrderMessageService.build_whatsapp_url(loaded)
+        # Evaluate rules after commit — may issue a grant for the NEXT order
+        try:
+            DiscountRuleEvaluator(self.db).evaluate_after_order_placed(
+                customer.id, loaded.id
+            )
+            self.db.commit()
+        except Exception:  # noqa: BLE001
+            pass  # Rule evaluation failure must never block checkout
+
+        # Create WebXPay payment session for online payment methods.
+        # Done after order commit so the session always references a persisted order.
+        payment_session_id = None
+        if payload.payment_method in {PaymentMethod.ONLINE_CARD, PaymentMethod.ONLINE_BANK_DEBIT}:
+            from app.services.webxpay.webxpay_service import WebXPayService
+
+            webxpay = WebXPayService(self.db)
+            payment_session = webxpay.create_session(loaded, ip_address=client_ip)
+            self.db.commit()
+            payment_session_id = payment_session.id
+
+        whatsapp_url = (
+            WhatsAppOrderMessageService.build_whatsapp_url(loaded)
+            if order_confirmation_include_whatsapp_cta(loaded.payment_method)
+            else None
+        )
         customer_email = normalize_email(payload.customer.email)
         order_type_label = (
             "Catering"
@@ -283,6 +351,11 @@ class CustomerCheckoutService:
         )
         premium_packaging_notice = premium_packaging_notice_from_collection_lines(
             loaded.collection_lines,
+        )
+        bank_details = (
+            settings.bank_transfer_details
+            if loaded.payment_method == PaymentMethod.BANK_TRANSFER
+            else None
         )
         send_email_safely(
             lambda: get_email_service().send_order_confirmation_email(
@@ -294,20 +367,31 @@ class CustomerCheckoutService:
                 total_amount=loaded.total_revenue_snapshot,
                 whatsapp_url=whatsapp_url,
                 premium_packaging_notice=premium_packaging_notice,
+                products_subtotal=loaded.products_subtotal_snapshot,
+                collections_subtotal=loaded.collections_subtotal_snapshot,
+                delivery_fee=loaded.delivery_fee_snapshot,
+                discount_amount=loaded.discount_amount_snapshot,
+                discount_label=_build_discount_label(loaded),
+                tax_lines=_build_tax_lines_for_email(loaded),
+                confirmation_intro=order_confirmation_intro(
+                    order_type=loaded.order_type,
+                    payment_method=loaded.payment_method,
+                ),
+                bank_name=bank_details.bank_name if bank_details else None,
+                bank_account_name=bank_details.account_name if bank_details else None,
+                bank_account_number=bank_details.account_number if bank_details else None,
+                bank_branch=bank_details.branch if bank_details else None,
+                bank_transfer_instructions=bank_details.instructions if bank_details else None,
             ),
             context=f"order_confirmation:{loaded.order_number}",
         )
         notify_team_new_order(loaded)
-        return ClientCheckoutResponse(
-            order_id=loaded.id,
-            order_number=loaded.order_number,
-            order_type=loaded.order_type,
-            scheduled_delivery_date=loaded.scheduled_delivery_date,
-            total_revenue_snapshot=loaded.total_revenue_snapshot,
-            whatsapp_url=whatsapp_url,
+        return build_checkout_response(
+            loaded,
+            business_settings=settings,
             account_created=account_created,
-            verification_email_sent=verification_sent,
-            message="Order placed successfully. Complete your order on WhatsApp when ready.",
+            verification_sent=verification_sent,
+            payment_session_id=payment_session_id,
         )
 
     def _validate_request(self, payload: ClientOrderPreviewRequest) -> ValidatedOrderRequest:
@@ -393,6 +477,7 @@ class CustomerCheckoutService:
         delivery_fee: Decimal,
         *,
         is_pickup: bool,
+        discount_grant=None,
     ):
         return self.profitability.build_order_snapshots(
             product_lines=[
@@ -416,25 +501,8 @@ class CustomerCheckoutService:
             ],
             delivery_fee=delivery_fee,
             is_pickup=is_pickup,
+            discount_grant=discount_grant,
         )
-
-    @staticmethod
-    def _validate_payment_method(
-        settings: BusinessSettingsResponse,
-        payment_method: PaymentMethod,
-    ) -> None:
-        allowed: set[PaymentMethod] = set()
-        if settings.cod_enabled:
-            allowed.add(PaymentMethod.CASH_ON_DELIVERY)
-        if settings.bank_transfer_enabled:
-            allowed.add(PaymentMethod.BANK_TRANSFER)
-        if settings.stripe_enabled:
-            allowed.add(PaymentMethod.STRIPE)
-
-        if not allowed:
-            raise ValidationError("No payment methods are currently available.")
-        if payment_method not in allowed:
-            raise ValidationError("Selected payment method is not available.")
 
     def _resolve_customer(self, payload: ClientCheckoutRequest) -> Customer:
         billing = (
@@ -517,3 +585,26 @@ class CustomerCheckoutService:
         prefix = f"WEB-{today}-"
         count = self.orders.count_orders_for_prefix(prefix) + 1
         return f"{prefix}{count:04d}"
+
+
+def _build_discount_label(order: "Order") -> str | None:
+    if not order.discount_amount_snapshot or order.discount_amount_snapshot <= 0:
+        return None
+    return format_discount_label(
+        order.discount_type_snapshot,
+        order.discount_value_snapshot,
+    )
+
+
+def _build_tax_lines_for_email(order: "Order") -> list[tuple[str, "Decimal"]] | None:
+    from decimal import Decimal as _D
+    tax_lines_raw = order.tax_lines_snapshot or []
+    if not tax_lines_raw:
+        return None
+    result = []
+    for t in tax_lines_raw:
+        label = t.get("name", "Tax")
+        if t.get("charge_type") == "percentage":
+            label = f"{label} ({t.get('configured_amount', '')}%)"
+        result.append((label, _D(str(t.get("applied_amount", "0")))))
+    return result or None

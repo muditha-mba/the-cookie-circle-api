@@ -69,6 +69,9 @@ class ProductItemRepository:
         purchase_unit: str,
         is_active: bool,
         primary_supplier_id: uuid.UUID | None = None,
+        track_inventory: bool = False,
+        reorder_level=None,
+        reorder_unit: str | None = None,
     ) -> ProductItem:
         record = ProductItem(
             item_type_id=item_type_id,
@@ -79,6 +82,9 @@ class ProductItemRepository:
             purchase_unit=purchase_unit.strip().lower(),
             is_active=is_active,
             primary_supplier_id=primary_supplier_id,
+            track_inventory=track_inventory,
+            reorder_level=reorder_level,
+            reorder_unit=reorder_unit.strip().lower() if reorder_unit else None,
         )
         self.db.add(record)
         self.db.flush()
@@ -116,6 +122,7 @@ class ProductItemRepository:
         sort_by: str,
         sort_order: str,
         item_type_id: uuid.UUID | None = None,
+        track_inventory_only: bool = False,
     ) -> tuple[list[ProductItem], int]:
         stmt = select(ProductItem).options(
             joinedload(ProductItem.item_type),
@@ -135,6 +142,8 @@ class ProductItemRepository:
             )
         if item_type_id is not None:
             filters.append(ProductItem.item_type_id == item_type_id)
+        if track_inventory_only:
+            filters.append(ProductItem.track_inventory.is_(True))
 
         for filter_clause in filters:
             stmt = stmt.where(filter_clause)

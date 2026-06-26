@@ -7,6 +7,16 @@ from pydantic import BaseModel, Field, field_validator
 from app.core.enums import Weekday
 
 
+class BankTransferDetailsResponse(BaseModel):
+    """Merchant bank account details shown for manual bank transfer orders."""
+
+    bank_name: str
+    account_name: str
+    account_number: str
+    branch: str
+    instructions: str
+
+
 class BusinessSettingsResponse(BaseModel):
     """Typed view of operational business settings."""
 
@@ -16,9 +26,12 @@ class BusinessSettingsResponse(BaseModel):
     delivery_day: Weekday
     business_phone: str
     business_email: str
-    stripe_enabled: bool
+    online_card_enabled: bool
+    online_bank_debit_enabled: bool
     bank_transfer_enabled: bool
     cod_enabled: bool
+    discounts_enabled: bool
+    bank_transfer_details: BankTransferDetailsResponse
 
 
 class BusinessSettingsUpdate(BaseModel):
@@ -30,9 +43,16 @@ class BusinessSettingsUpdate(BaseModel):
     delivery_day: Weekday | None = None
     business_phone: str | None = Field(default=None, max_length=50)
     business_email: str | None = Field(default=None, max_length=320)
-    stripe_enabled: bool | None = None
+    online_card_enabled: bool | None = None
+    online_bank_debit_enabled: bool | None = None
     bank_transfer_enabled: bool | None = None
     cod_enabled: bool | None = None
+    discounts_enabled: bool | None = None
+    bank_name: str | None = Field(default=None, max_length=120)
+    bank_account_name: str | None = Field(default=None, max_length=120)
+    bank_account_number: str | None = Field(default=None, max_length=40)
+    bank_branch: str | None = Field(default=None, max_length=120)
+    bank_transfer_instructions: str | None = Field(default=None, max_length=1000)
 
     @field_validator("business_email")
     @classmethod
@@ -44,6 +64,19 @@ class BusinessSettingsUpdate(BaseModel):
     @field_validator("business_phone")
     @classmethod
     def strip_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()
+
+    @field_validator(
+        "bank_name",
+        "bank_account_name",
+        "bank_account_number",
+        "bank_branch",
+        "bank_transfer_instructions",
+    )
+    @classmethod
+    def strip_bank_fields(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip()

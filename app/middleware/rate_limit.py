@@ -33,6 +33,9 @@ RATE_LIMIT_RULES: tuple[RateLimitRule, ...] = (
     RateLimitRule("GET", "/api/v1/client/auth/check-email", 20, 60),
     RateLimitRule("POST", "/api/v1/client/orders/checkout", 10, 60),
     RateLimitRule("POST", "/api/v1/client/orders/preview", 30, 60),
+    # WebXPay payment endpoints — the return endpoint is called by a browser
+    # redirect from WebXPay, so a generous limit is appropriate.
+    RateLimitRule("POST", "/api/v1/payments/webxpay/return", 20, 60),
 )
 
 

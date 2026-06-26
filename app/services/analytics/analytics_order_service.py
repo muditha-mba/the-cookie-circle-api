@@ -61,8 +61,9 @@ PAYMENT_STATUS_BUCKETS: tuple[tuple[str, str], ...] = (
 PAYMENT_METHOD_BUCKETS: tuple[tuple[str, str], ...] = (
     (PaymentMethod.CASH_ON_DELIVERY.value, "COD"),
     (PaymentMethod.BANK_TRANSFER.value, "Bank Transfer"),
+    (PaymentMethod.ONLINE_CARD.value, "Online Card"),
+    (PaymentMethod.ONLINE_BANK_DEBIT.value, "Online Bank Debit"),
     (PaymentMethod.MANUAL.value, "Cash"),
-    (PaymentMethod.STRIPE.value, "Stripe"),
 )
 
 SOURCE_BUCKETS: tuple[tuple[str, str], ...] = (

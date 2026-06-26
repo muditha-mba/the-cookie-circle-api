@@ -1,15 +1,17 @@
 """Public client ordering routes (no authentication required)."""
 
+import uuid
 from dataclasses import asdict
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.dependencies.client import (
     get_customer_catalog_service,
     get_customer_checkout_service,
 )
-from app.core.enums import PaymentMethod
+from app.dependencies.client_account import get_optional_current_customer_id
+from app.core.enums import OrderType
 from app.schemas.business_settings import BusinessSettingsResponse
 from app.schemas.client_ordering import (
     CateringConstraintsResponse,
@@ -22,11 +24,11 @@ from app.schemas.client_ordering import (
     ClientDeliveryAreaOption,
     ClientOrderPreviewRequest,
     ClientOrderPreviewResponse,
-    ClientPaymentMethodOption,
     EmailAvailabilityResponse,
     DeliveryScheduleCopyResponse,
     WeeklyDeliveryInfoResponse,
 )
+from app.services.client_payment_options import get_client_payment_method_options
 from app.services.customer_catalog_service import CustomerCatalogService
 from app.services.customer_checkout_service import CustomerCheckoutService
 from app.services.customer_delivery_date_service import (
@@ -49,41 +51,16 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/client", tags=["Client Ordering"])
 
 
-def _client_payment_methods(settings: BusinessSettingsResponse) -> list[ClientPaymentMethodOption]:
-    methods: list[ClientPaymentMethodOption] = []
-    if settings.cod_enabled:
-        methods.append(
-            ClientPaymentMethodOption(
-                code=PaymentMethod.CASH_ON_DELIVERY,
-                label="Cash on delivery",
-            ),
-        )
-    if settings.bank_transfer_enabled:
-        methods.append(
-            ClientPaymentMethodOption(
-                code=PaymentMethod.BANK_TRANSFER,
-                label="Bank transfer",
-            ),
-        )
-    if settings.stripe_enabled:
-        methods.append(
-            ClientPaymentMethodOption(
-                code=PaymentMethod.STRIPE,
-                label="Card payment",
-            ),
-        )
-    return methods
-
-
 @router.get("/ordering/checkout-options", response_model=ClientCheckoutOptionsResponse)
 def get_checkout_options(
     db: Annotated[Session, Depends(get_db)],
+    order_type: Annotated[OrderType | None, Query()] = None,
 ) -> ClientCheckoutOptionsResponse:
     settings = BusinessSettingService(db).get_settings()
     return ClientCheckoutOptionsResponse(
         use_fixed_delivery_fee=settings.use_fixed_delivery_fee,
         fixed_delivery_fee=str(settings.delivery_fee),
-        payment_methods=_client_payment_methods(settings),
+        payment_methods=get_client_payment_method_options(settings, order_type),
     )
 
 
@@ -170,9 +147,10 @@ def quote_collection_price(
 def preview_client_order(
     payload: ClientOrderPreviewRequest,
     service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
+    customer_id: Annotated[uuid.UUID | None, Depends(get_optional_current_customer_id)] = None,
 ) -> ClientOrderPreviewResponse:
     """Preview pricing and assigned delivery date before checkout."""
-    return service.preview(payload)
+    return service.preview(payload, customer_id=customer_id)
 
 
 @router.post(
@@ -185,9 +163,9 @@ def checkout_client_order(
     request: Request,
     service: Annotated[CustomerCheckoutService, Depends(get_customer_checkout_service)],
 ) -> ClientCheckoutResponse:
-    """Place a website order and receive a WhatsApp handoff URL."""
+    """Place a website order. Returns redirect instructions for the chosen payment method."""
     verify_captcha_token(payload.captcha_token, remote_ip=get_client_ip(request))
-    return service.checkout(payload)
+    return service.checkout(payload, client_ip=get_client_ip(request))
 
 
 @router.get("/auth/check-email", response_model=EmailAvailabilityResponse)

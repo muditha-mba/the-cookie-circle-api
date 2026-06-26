@@ -9,21 +9,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 from app.models.base import TimestampMixin
-from app.models.collection_associations import (
-    collection_allowed_categories,
-    collection_labour_charges,
-    collection_tax_charges,
-    collection_utility_charges,
-)
+from app.models.collection_associations import collection_allowed_categories
 
 if TYPE_CHECKING:
     from app.models.collection_item_line import CollectionItemLine
     from app.models.collection_package import CollectionPackage
     from app.models.collection_product_line import CollectionProductLine
-    from app.models.labour_charge import LabourCharge
     from app.models.product_category import ProductCategory
-    from app.models.tax_charge import TaxCharge
-    from app.models.utility_charge import UtilityCharge
 
 
 class Collection(Base, TimestampMixin):
@@ -74,16 +66,4 @@ class Collection(Base, TimestampMixin):
         back_populates="collection",
         cascade="all, delete-orphan",
         order_by="CollectionItemLine.created_at",
-    )
-    utility_charges: Mapped[list["UtilityCharge"]] = relationship(
-        "UtilityCharge",
-        secondary=collection_utility_charges,
-    )
-    labour_charges: Mapped[list["LabourCharge"]] = relationship(
-        "LabourCharge",
-        secondary=collection_labour_charges,
-    )
-    tax_charges: Mapped[list["TaxCharge"]] = relationship(
-        "TaxCharge",
-        secondary=collection_tax_charges,
     )

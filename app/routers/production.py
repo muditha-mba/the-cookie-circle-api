@@ -10,6 +10,8 @@ from fastapi.responses import Response
 from app.core.admin_access import can_view_financials
 from app.dependencies.admin import (
     get_current_admin_user,
+    get_inventory_expense_service,
+    get_inventory_readiness_service,
     get_production_batch_service,
     get_production_planning_service,
     get_purchase_planning_service,
@@ -34,6 +36,7 @@ from app.schemas.production import (
     ProductionSummaryResponse,
     ProductDemandResponse,
 )
+from app.schemas.inventory_readiness import InventoryReadinessResponse
 from app.services.financial_redaction import (
     redact_fulfillment_overview,
     redact_ingredient_requirements,
@@ -46,6 +49,7 @@ from app.services.financial_redaction import (
 from app.services.production_batch_service import ProductionBatchService
 from app.services.production_planning_service import ProductionPlanningService
 from app.services.purchase_planning_service import PurchasePlanningService
+from app.services.inventory_readiness_service import InventoryReadinessService
 
 router = APIRouter(
     prefix="/production",
@@ -138,6 +142,16 @@ def get_fulfillment_overview(
     if not can_view_financials(current_user):
         return redact_fulfillment_overview(result)
     return result
+
+
+@router.get("/inventory-readiness", response_model=InventoryReadinessResponse)
+def get_inventory_readiness(
+    _: Annotated[User, Depends(require_super_admin)],
+    delivery_date: Annotated[date, Query(description="Scheduled delivery / production date")],
+    service: Annotated[InventoryReadinessService, Depends(get_inventory_readiness_service)] = ...,
+) -> InventoryReadinessResponse:
+    """Production demand vs on-hand stock for a delivery date."""
+    return service.get_readiness(delivery_date)
 
 
 @router.get("/planning-batch", response_model=ProductionBatchResponse)

@@ -142,6 +142,56 @@ class Settings(BaseSettings):
         description="Public API base URL used for stable media links served by the API",
     )
 
+    # ── WebXPay payment gateway ────────────────────────────────────────────────
+    webxpay_enabled: bool = Field(
+        default=False,
+        alias="WEBXPAY_ENABLED",
+        description=(
+            "Master switch. Must be true before online payment methods work at checkout. "
+            "Keep false until merchant account credentials are confirmed and tested."
+        ),
+    )
+    webxpay_sandbox: bool = Field(
+        default=True,
+        alias="WEBXPAY_SANDBOX",
+        description="true = staging (stagingxpay.info), false = live (webxpay.com)",
+    )
+    webxpay_merchant_id: str | None = Field(
+        default=None,
+        alias="WEBXPAY_MERCHANT_ID",
+        description="Merchant ID from WebXPay dashboard — used only for reference/logging",
+    )
+    webxpay_secret_key: str | None = Field(
+        default=None,
+        alias="WEBXPAY_SECRET_KEY",
+        description="Secret key from WebXPay dashboard Settings > Integrations",
+    )
+    webxpay_public_key_pem: str | None = Field(
+        default=None,
+        alias="WEBXPAY_PUBLIC_KEY_PEM",
+        description=(
+            "WebXPay RSA public key (PEM format, newlines as \\n or actual newlines). "
+            "Used to encrypt the payment blob sent to WebXPay and to verify return signatures."
+        ),
+    )
+    webxpay_return_url: str | None = Field(
+        default=None,
+        alias="WEBXPAY_RETURN_URL",
+        description=(
+            "Return URL registered in WebXPay dashboard. "
+            "WebXPay POSTs payment result to this URL after transaction completes. "
+            "Must point to: {API_PUBLIC_URL}/api/v1/payments/webxpay/return"
+        ),
+    )
+    webxpay_cancel_url: str | None = Field(
+        default=None,
+        alias="WEBXPAY_CANCEL_URL",
+        description=(
+            "Cancel URL shown to customer if they abandon the WebXPay payment page. "
+            "Typically a frontend URL such as {FRONTEND_CLIENT_URL}/cart"
+        ),
+    )
+
     aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
     aws_secret_access_key: str | None = Field(default=None, alias="AWS_SECRET_ACCESS_KEY")
     aws_region: str = Field(default="ap-southeast-1", alias="AWS_REGION")
@@ -159,6 +209,19 @@ class Settings(BaseSettings):
         alias="S3_REVIEWS_PREFIX",
         description="S3 prefix reserved for future customer review image uploads",
     )
+    s3_purchase_receipts_prefix: str = Field(
+        default="purchase-receipts",
+        alias="S3_PURCHASE_RECEIPTS_PREFIX",
+        description="S3 prefix for supplier bill uploads on purchase receipts",
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def webxpay_billing_url(self) -> str:
+        """WebXPay hosted payment page URL — staging or live."""
+        if self.webxpay_sandbox:
+            return "https://stagingxpay.info/index.php?route=checkout/billing"
+        return "https://webxpay.com/index.php?route=checkout/billing"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -255,6 +318,21 @@ class Settings(BaseSettings):
             raise ValueError(
                 "TURNSTILE_SECRET_KEY is required when CAPTCHA_REQUIRED=true",
             )
+
+        if self.webxpay_enabled:
+            missing = [
+                name
+                for name, value in {
+                    "WEBXPAY_SECRET_KEY": self.webxpay_secret_key,
+                    "WEBXPAY_PUBLIC_KEY_PEM": self.webxpay_public_key_pem,
+                }.items()
+                if not (value or "").strip()
+            ]
+            if missing:
+                raise ValueError(
+                    f"WEBXPAY_ENABLED=true requires these variables to be set: "
+                    f"{', '.join(missing)}",
+                )
 
         return self
 

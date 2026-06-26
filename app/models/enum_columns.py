@@ -10,14 +10,25 @@ from app.core.enums import (
     CollectionSelectionMode,
     CommunicationType,
     CustomerSource,
+    DiscountAuditEventType,
+    DiscountGrantStatus,
+    DiscountRuleType,
+    DiscountSource,
+    DiscountType,
+    InventoryMovementReferenceType,
+    InventoryMovementType,
     MarketingSource,
     OrderSource,
     OrderStatus,
     OrderType,
     PaymentMethod,
+    PaymentSessionStatus,
     PaymentStatus,
     ProductionBatchStatus,
     PurchasePlanningStatus,
+    PurchaseReceiptStatus,
+    ConsumptionDemandType,
+    ConsumptionProposalStatus,
     ReviewItemSentiment,
 )
 
@@ -86,6 +97,12 @@ payment_status_enum = Enum(
     values_callable=_enum_values,
 )
 
+payment_session_status_enum = Enum(
+    PaymentSessionStatus,
+    name="payment_session_status",
+    values_callable=_enum_values,
+)
+
 order_status_enum = Enum(
     OrderStatus,
     name="order_status",
@@ -116,8 +133,68 @@ purchase_planning_status_enum = Enum(
     values_callable=_enum_values,
 )
 
+inventory_movement_type_enum = Enum(
+    InventoryMovementType,
+    name="inventory_movement_type",
+    values_callable=_enum_values,
+)
+
+inventory_movement_reference_type_enum = Enum(
+    InventoryMovementReferenceType,
+    name="inventory_movement_reference_type",
+    values_callable=_enum_values,
+)
+
+purchase_receipt_status_enum = Enum(
+    PurchaseReceiptStatus,
+    name="purchase_receipt_status",
+    values_callable=_enum_values,
+)
+
+consumption_proposal_status_enum = Enum(
+    ConsumptionProposalStatus,
+    name="consumption_proposal_status",
+    values_callable=_enum_values,
+)
+
+consumption_demand_type_enum = Enum(
+    ConsumptionDemandType,
+    name="consumption_demand_type",
+    values_callable=_enum_values,
+)
+
 review_item_sentiment_enum = Enum(
     ReviewItemSentiment,
     name="review_item_sentiment",
+    values_callable=_enum_values,
+)
+
+discount_type_enum = Enum(
+    DiscountType,
+    name="discount_type",
+    values_callable=_enum_values,
+)
+
+discount_rule_type_enum = Enum(
+    DiscountRuleType,
+    name="discount_rule_type",
+    values_callable=_enum_values,
+)
+
+discount_grant_status_enum = Enum(
+    DiscountGrantStatus,
+    name="discount_grant_status",
+    values_callable=_enum_values,
+)
+
+discount_source_enum = Enum(
+    DiscountSource,
+    name="discount_source",
+    values_callable=_enum_values,
+)
+
+discount_audit_event_type_enum = Enum(
+    DiscountAuditEventType,
+    name="discount_audit_event_type",
     values_callable=_enum_values,
 )

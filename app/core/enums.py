@@ -128,7 +128,8 @@ class PaymentMethod(str, enum.Enum):
 
     CASH_ON_DELIVERY = "cash_on_delivery"
     BANK_TRANSFER = "bank_transfer"
-    STRIPE = "stripe"
+    ONLINE_CARD = "online_card"
+    ONLINE_BANK_DEBIT = "online_bank_debit"
     MANUAL = "manual"
 
 
@@ -139,6 +140,17 @@ class PaymentStatus(str, enum.Enum):
     PAID = "paid"
     FAILED = "failed"
     REFUNDED = "refunded"
+
+
+class PaymentSessionStatus(str, enum.Enum):
+    """WebXPay payment session lifecycle state."""
+
+    INITIATED = "initiated"      # Session created; redirect payload ready
+    REDIRECTED = "redirected"    # Customer was sent to WebXPay billing page
+    COMPLETED = "completed"      # WebXPay confirmed payment approved — terminal
+    FAILED = "failed"            # WebXPay reported payment declined — terminal (retry allowed)
+    EXPIRED = "expired"          # Session timed out before callback received — terminal
+    TAMPERED = "tampered"        # Return payload failed integrity check — terminal (critical alert)
 
 
 class ReviewItemSentiment(str, enum.Enum):
@@ -176,6 +188,45 @@ class PurchasePlanningStatus(str, enum.Enum):
     ORDERED = "ordered"
 
 
+class InventoryMovementType(str, enum.Enum):
+    """Inventory ledger movement classification."""
+
+    RECEIPT = "receipt"
+    ADJUSTMENT = "adjustment"
+    WASTE = "waste"
+    CONSUMPTION = "consumption"
+
+
+class InventoryMovementReferenceType(str, enum.Enum):
+    """Source document linked to an inventory movement."""
+
+    PURCHASE_RECEIPT = "purchase_receipt"
+    MANUAL = "manual"
+    CONSUMPTION_PROPOSAL = "consumption_proposal"
+
+
+class PurchaseReceiptStatus(str, enum.Enum):
+    """Purchase receipt lifecycle."""
+
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+
+
+class ConsumptionProposalStatus(str, enum.Enum):
+    """Inventory consumption proposal lifecycle."""
+
+    PENDING_REVIEW = "pending_review"
+    APPROVED = "approved"
+    DISMISSED = "dismissed"
+
+
+class ConsumptionDemandType(str, enum.Enum):
+    """Ingredient vs packaging demand on a consumption proposal line."""
+
+    INGREDIENT = "ingredient"
+    PACKAGING = "packaging"
+
+
 class ActivityAction(str, enum.Enum):
     """Admin activity log action."""
 
@@ -205,6 +256,9 @@ class ActivityResourceType(str, enum.Enum):
     UTILITY_CHARGE = "utility_charge"
     LABOUR_CHARGE = "labour_charge"
     TAX_CHARGE = "tax_charge"
+    DISCOUNT_RULE = "discount_rule"
+    CUSTOMER_DISCOUNT_GRANT = "customer_discount_grant"
+    PROMOTION_SLIDE = "promotion_slide"
     BUSINESS_SETTINGS = "business_settings"
     FAQ = "faq"
     FAQ_CATEGORY = "faq_category"
@@ -216,6 +270,10 @@ class ActivityResourceType(str, enum.Enum):
     AUTH = "auth"
     USER = "user"
     SYSTEM = "system"
+    INVENTORY_LOT = "inventory_lot"
+    INVENTORY_MOVEMENT = "inventory_movement"
+    PURCHASE_RECEIPT = "purchase_receipt"
+    CONSUMPTION_PROPOSAL = "consumption_proposal"
 
 
 class ClientDeviceType(str, enum.Enum):
@@ -226,5 +284,45 @@ class ClientDeviceType(str, enum.Enum):
     TABLET = "tablet"
     BOT = "bot"
     UNKNOWN = "unknown"
+
+
+class DiscountType(str, enum.Enum):
+    """How a discount is calculated."""
+
+    FIXED = "fixed"
+    PERCENTAGE = "percentage"
+
+
+class DiscountRuleType(str, enum.Enum):
+    """Rule evaluation strategy — extensible for future strategies."""
+
+    ORDER_FREQUENCY_IN_WINDOW = "order_frequency_in_window"
+
+
+class DiscountGrantStatus(str, enum.Enum):
+    """Lifecycle state of a customer discount grant."""
+
+    ACTIVE = "active"
+    USED = "used"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+
+class DiscountSource(str, enum.Enum):
+    """How a discount grant was created."""
+
+    RULE = "rule"
+    MANUAL = "manual"
+
+
+class DiscountAuditEventType(str, enum.Enum):
+    """Business-level events tracked in the discount audit trail."""
+
+    RULE_EVALUATED = "rule_evaluated"
+    GRANTED = "granted"
+    USED = "used"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    OVERRIDE_SET = "override_set"
 
 

@@ -49,6 +49,18 @@ ANALYTICS_CATEGORIES: tuple[AnalyticsCategory, ...] = (
         description="Executive KPIs, alerts, workload, and business health overview.",
         endpoint_prefix="/api/v1/analytics/operations",
     ),
+    AnalyticsCategory(
+        id="overhead",
+        title="Overhead Analytics",
+        description="Utility and labour monthly bills, operating profit after overhead, and spend by category.",
+        endpoint_prefix="/api/v1/analytics/overhead",
+    ),
+    AnalyticsCategory(
+        id="discounts",
+        title="Discount Analytics",
+        description="Grants issued, redeemed, revenue impact, and rule performance.",
+        endpoint_prefix="/api/v1/analytics/discounts",
+    ),
 )
 
 

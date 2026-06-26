@@ -1,14 +1,20 @@
 """Authenticated customer account dependencies."""
 
+from __future__ import annotations
+
+import uuid
 from typing import Annotated
 
 from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.enums import UserRole
 from app.core.exceptions import ForbiddenError
+from app.core.security import decode_access_token
 from app.database.session import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import bearer_scheme, get_current_user
 from app.models.customer import Customer
 from app.models.user import User
 from app.services.client_account_service import ClientAccountService
@@ -31,6 +37,35 @@ def get_or_create_customer(
     db: Annotated[Session, Depends(get_db)],
 ) -> Customer:
     return CustomerIdentityService(db).ensure_customer_for_user(current_user)
+
+
+def get_optional_current_customer_id(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    db: Annotated[Session, Depends(get_db)],
+) -> uuid.UUID | None:
+    """
+    Return the customer's UUID when a valid bearer token is present, else None.
+    Never raises — safe for use on public endpoints that optionally personalize for logged-in users.
+    """
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials)
+        if payload.get("type") != "access":
+            return None
+        subject = payload.get("sub")
+        if not subject:
+            return None
+        token_version = payload.get("tv")
+        if token_version is None:
+            return None
+        user = db.scalar(select(User).where(User.id == uuid.UUID(subject)))
+        if user is None or user.role != UserRole.CUSTOMER:
+            return None
+        customer = CustomerIdentityService(db).ensure_customer_for_user(user, commit=False)
+        return customer.id
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def get_client_account_service(

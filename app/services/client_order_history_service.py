@@ -6,7 +6,7 @@ from decimal import Decimal
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.enums import OrderStatus, OrderType
+from app.core.enums import OrderStatus, OrderType, PaymentMethod, PaymentStatus
 from app.core.exceptions import NotFoundError
 from app.models.customer import Customer
 from app.models.order import Order
@@ -21,6 +21,8 @@ from app.schemas.client_account import (
     ClientAccountOrderSummary,
 )
 from app.schemas.pagination import PaginatedResponse
+from app.services.business_setting_service import BusinessSettingService
+from app.services.checkout_follow_up import build_bank_transfer_instructions
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 from app.utils.search import ilike_contains
 
@@ -147,11 +149,24 @@ class ClientOrderHistoryService:
             for line in order.product_lines
         ]
 
+        bank_transfer_instructions = None
+        if (
+            order.payment_method == PaymentMethod.BANK_TRANSFER
+            and order.payment_status == PaymentStatus.PENDING
+        ):
+            settings = BusinessSettingService(self.db).get_settings()
+            bank_transfer_instructions = build_bank_transfer_instructions(
+                bank_details=settings.bank_transfer_details,
+                order_number=order.order_number,
+                amount=order.total_revenue_snapshot,
+            )
+
         return ClientAccountOrderDetailResponse(
             id=order.id,
             order_number=order.order_number,
             order_type=order.order_type,
             status=order.status,
+            payment_status=order.payment_status,
             event_name=order.event_name,
             payment_method=order.payment_method,
             delivery_area_name=self._delivery_area_display_name(order),
@@ -173,6 +188,7 @@ class ClientOrderHistoryService:
             premium_packaging_notice=premium_packaging_notice_from_collection_lines(
                 order.collection_lines,
             ),
+            bank_transfer_instructions=bank_transfer_instructions,
         )
 
     def _delivery_area_display_name(self, order: Order) -> str | None:

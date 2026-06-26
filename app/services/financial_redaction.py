@@ -22,7 +22,6 @@ from app.schemas.collection import (
     CollectionSummaryResponse,
 )
 from app.schemas.product import (
-    AttachedChargeSummary,
     ProductDetailResponse,
     ProductSummaryResponse,
     RecipeLineResponse,
@@ -138,19 +137,12 @@ def redact_recipe_line(line: RecipeLineResponse) -> RecipeLineResponse:
     return line.model_copy(update={"cost_per_unit": _zero(), "line_cost": _zero()})
 
 
-def redact_attached_charge(charge: AttachedChargeSummary) -> AttachedChargeSummary:
-    return charge.model_copy(update={"amount": _zero()})
-
-
 def redact_product_detail(product: ProductDetailResponse) -> ProductDetailResponse:
     return product.model_copy(
         update={
             "buffer_amount": _zero(),
             "cost_breakdown": None,
             "recipe_lines": [redact_recipe_line(line) for line in product.recipe_lines],
-            "utility_charges": [redact_attached_charge(c) for c in product.utility_charges],
-            "labour_charges": [redact_attached_charge(c) for c in product.labour_charges],
-            "tax_charges": [redact_attached_charge(c) for c in product.tax_charges],
         },
     )
 
@@ -213,13 +205,7 @@ def redact_customer_order_row(row: CustomerOrderHistoryItem) -> CustomerOrderHis
 
 
 def redact_collection_detail(collection: CollectionDetailResponse) -> CollectionDetailResponse:
-    return collection.model_copy(
-        update={
-            "utility_charges": [redact_attached_charge(c) for c in collection.utility_charges],
-            "labour_charges": [redact_attached_charge(c) for c in collection.labour_charges],
-            "tax_charges": [redact_attached_charge(c) for c in collection.tax_charges],
-        },
-    )
+    return collection
 
 
 def redact_collection_list(

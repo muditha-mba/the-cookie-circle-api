@@ -26,8 +26,6 @@ from app.schemas.collection import (
     ProductCategorySummary,
 )
 from app.schemas.pagination import PaginatedResponse
-from app.schemas.product import AttachedChargeSummary
-from app.utils.charge_applicability import COLLECTION_APPLICABILITIES, validate_charges_for_target
 
 
 class CollectionService:
@@ -55,12 +53,6 @@ class CollectionService:
         )
         collection.allowed_categories = self._resolve_categories(payload.allowed_category_ids)
         self._apply_item_lines(collection, payload.item_lines)
-        self._apply_charges(
-            collection,
-            utility_charge_ids=payload.utility_charge_ids,
-            labour_charge_ids=payload.labour_charge_ids,
-            tax_charge_ids=payload.tax_charge_ids,
-        )
         self.collections.create(collection)
         self.db.commit()
         loaded = self.collections.get_by_id(collection.id)
@@ -97,22 +89,9 @@ class CollectionService:
 
         update_data = payload.model_dump(
             exclude_unset=True,
-            exclude={
-                "item_lines",
-                "allowed_category_ids",
-                "utility_charge_ids",
-                "labour_charge_ids",
-                "tax_charge_ids",
-            },
+            exclude={"item_lines", "allowed_category_ids"},
         )
-        if (
-            not update_data
-            and payload.item_lines is None
-            and payload.allowed_category_ids is None
-            and payload.utility_charge_ids is None
-            and payload.labour_charge_ids is None
-            and payload.tax_charge_ids is None
-        ):
+        if not update_data and payload.item_lines is None and payload.allowed_category_ids is None:
             raise ValidationError("No fields provided to update")
 
         if payload.name is not None:
@@ -138,30 +117,6 @@ class CollectionService:
 
         if payload.item_lines is not None:
             self._replace_item_lines(collection, payload.item_lines)
-
-        if (
-            payload.utility_charge_ids is not None
-            or payload.labour_charge_ids is not None
-            or payload.tax_charge_ids is not None
-        ):
-            self._apply_charges(
-                collection,
-                utility_charge_ids=(
-                    payload.utility_charge_ids
-                    if payload.utility_charge_ids is not None
-                    else [c.id for c in collection.utility_charges]
-                ),
-                labour_charge_ids=(
-                    payload.labour_charge_ids
-                    if payload.labour_charge_ids is not None
-                    else [c.id for c in collection.labour_charges]
-                ),
-                tax_charge_ids=(
-                    payload.tax_charge_ids
-                    if payload.tax_charge_ids is not None
-                    else [c.id for c in collection.tax_charges]
-                ),
-            )
 
         self.db.add(collection)
         self.db.commit()
@@ -209,30 +164,6 @@ class CollectionService:
                 ),
             )
 
-    def _apply_charges(
-        self,
-        collection: Collection,
-        *,
-        utility_charge_ids: list[uuid.UUID],
-        labour_charge_ids: list[uuid.UUID],
-        tax_charge_ids: list[uuid.UUID],
-    ) -> None:
-        collection.utility_charges = self._resolve_charges(
-            utility_charge_ids,
-            self.collections.get_utility_charges_by_ids,
-            "utility",
-        )
-        collection.labour_charges = self._resolve_charges(
-            labour_charge_ids,
-            self.collections.get_labour_charges_by_ids,
-            "labour",
-        )
-        collection.tax_charges = self._resolve_charges(
-            tax_charge_ids,
-            self.collections.get_tax_charges_by_ids,
-            "tax",
-        )
-
     def _resolve_categories(self, ids: list[uuid.UUID]):
         if not ids:
             raise ValidationError("At least one allowed category is required")
@@ -243,19 +174,6 @@ class CollectionService:
         if inactive:
             raise ValidationError(f"Inactive categories cannot be assigned: {', '.join(inactive)}")
         return categories
-
-    def _resolve_charges(self, ids: list[uuid.UUID], loader, label: str):
-        if not ids:
-            return []
-        charges = loader(ids)
-        if len(charges) != len(set(ids)):
-            raise NotFoundError(f"One or more {label} charges were not found")
-        validate_charges_for_target(
-            charges,
-            target_label="collection",
-            allowed=COLLECTION_APPLICABILITIES,
-        )
-        return charges
 
     def _load_packaging_items(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, ProductItem]:
         items_list = self.product_items.get_by_ids_with_type(ids)
@@ -308,9 +226,6 @@ class CollectionService:
                 )
                 for line in collection.item_lines
             ],
-            utility_charges=[self._charge_summary(c) for c in collection.utility_charges],
-            labour_charges=[self._charge_summary(c) for c in collection.labour_charges],
-            tax_charges=[self._charge_summary(c) for c in collection.tax_charges],
             package=collection.package,
         )
 
@@ -321,14 +236,3 @@ class CollectionService:
         if not package.is_active:
             raise ValidationError(f"Collection package is inactive: {package.name}")
         return package
-
-    @staticmethod
-    def _charge_summary(charge) -> AttachedChargeSummary:
-        return AttachedChargeSummary(
-            id=charge.id,
-            name=charge.name,
-            charge_type=charge.charge_type.value,
-            amount=charge.amount,
-            applicability=charge.applicability.value,
-            is_active=charge.is_active,
-        )

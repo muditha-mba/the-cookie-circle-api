@@ -11,6 +11,7 @@ from app.database.base import Base
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.inventory_lot import InventoryLot
     from app.models.product_item_type import ProductItemType
     from app.models.supplier import Supplier
 
@@ -18,9 +19,8 @@ if TYPE_CHECKING:
 class ProductItem(Base, TimestampMixin):
     """Purchased resource with derived unit cost.
 
-    Future inventory (Phase 8+) will attach stock configuration here — e.g.
-    reorder_level and track_inventory — while stock quantities and movements
-    remain in separate inventory tables.
+    Stock configuration (track_inventory, reorder_level) lives here; quantities
+    and movements remain in inventory tables.
     """
 
     __tablename__ = "product_items"
@@ -42,6 +42,14 @@ class ProductItem(Base, TimestampMixin):
     purchase_quantity: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     purchase_unit: Mapped[str] = mapped_column(String(50), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    track_inventory: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default="false",
+    )
+    reorder_level: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    reorder_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     primary_supplier_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("suppliers.id", ondelete="SET NULL"),
@@ -56,4 +64,8 @@ class ProductItem(Base, TimestampMixin):
     primary_supplier: Mapped["Supplier | None"] = relationship(
         "Supplier",
         back_populates="product_items",
+    )
+    inventory_lots: Mapped[list["InventoryLot"]] = relationship(
+        "InventoryLot",
+        back_populates="product_item",
     )

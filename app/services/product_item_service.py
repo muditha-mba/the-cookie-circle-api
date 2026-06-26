@@ -40,6 +40,9 @@ class ProductItemService:
             purchase_unit=payload.purchase_unit,
             is_active=payload.is_active,
             primary_supplier_id=payload.primary_supplier_id,
+            track_inventory=payload.track_inventory,
+            reorder_level=payload.reorder_level,
+            reorder_unit=payload.reorder_unit,
         )
         self.db.commit()
         return ProductItemResponse.from_model(record)

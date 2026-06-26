@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
+from app.database.session import get_db
 from app.dependencies.admin import (
     get_analytics_collection_service,
     get_analytics_customer_service,
@@ -19,7 +21,9 @@ from app.dependencies.admin import (
     get_analytics_production_ux_service,
     get_analytics_revenue_service,
     get_current_admin_user,
+    get_overhead_analytics_service,
 )
+from app.services.overhead_analytics_service import OverheadAnalyticsService
 from app.dependencies.permissions import require_super_admin
 from app.schemas.analytics import (
     AnalyticsOverviewResponse,
@@ -656,3 +660,64 @@ def export_analytics_scope_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ─── Overhead Analytics ────────────────────────────────────────────────────────
+
+
+@router.get("/overhead/kpis")
+def get_overhead_kpis(
+    year: Annotated[int, Query(ge=2020, le=2100)] = 2026,
+    service: Annotated[OverheadAnalyticsService, Depends(get_overhead_analytics_service)] = ...,
+    _: Annotated[object, Depends(require_super_admin)] = ...,
+) -> dict:
+    return service.get_kpis(year)
+
+
+@router.get("/overhead/monthly-breakdown")
+def get_overhead_monthly_breakdown(
+    year: Annotated[int, Query(ge=2020, le=2100)] = 2026,
+    service: Annotated[OverheadAnalyticsService, Depends(get_overhead_analytics_service)] = ...,
+    _: Annotated[object, Depends(require_super_admin)] = ...,
+) -> list[dict]:
+    return service.get_monthly_breakdown(year)
+
+
+@router.get("/overhead/category-breakdown")
+def get_overhead_category_breakdown(
+    year: Annotated[int, Query(ge=2020, le=2100)] = 2026,
+    service: Annotated[OverheadAnalyticsService, Depends(get_overhead_analytics_service)] = ...,
+    _: Annotated[object, Depends(require_super_admin)] = ...,
+) -> list[dict]:
+    return service.get_category_breakdown(year)
+
+
+# ─── Discount Analytics ────────────────────────────────────────────────────────
+
+
+@router.get("/discounts/kpis")
+def get_discount_kpis(
+    params: Annotated[AnalyticsQueryParams, Depends()],
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[object, Depends(require_super_admin)] = ...,
+) -> dict:
+    from app.services.analytics.analytics_discount_service import DiscountAnalyticsService
+    return DiscountAnalyticsService(db).get_kpis(params)
+
+
+@router.get("/discounts/monthly-trends")
+def get_discount_monthly_trends(
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[object, Depends(require_super_admin)] = ...,
+) -> list[dict]:
+    from app.services.analytics.analytics_discount_service import DiscountAnalyticsService
+    return DiscountAnalyticsService(db).get_monthly_trends()
+
+
+@router.get("/discounts/rule-performance")
+def get_discount_rule_performance(
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[object, Depends(require_super_admin)] = ...,
+) -> list[dict]:
+    from app.services.analytics.analytics_discount_service import DiscountAnalyticsService
+    return DiscountAnalyticsService(db).get_rule_performance()

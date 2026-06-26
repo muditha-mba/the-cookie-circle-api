@@ -21,6 +21,9 @@ class ProductItemBase(BaseModel):
     purchase_unit: str = Field(min_length=1, max_length=50)
     primary_supplier_id: UUID | None = None
     is_active: bool = True
+    track_inventory: bool = False
+    reorder_level: Decimal | None = Field(default=None, ge=0)
+    reorder_unit: str | None = Field(default=None, min_length=1, max_length=50)
 
     @field_validator("name", "purchase_unit")
     @classmethod
@@ -48,6 +51,9 @@ class ProductItemUpdate(BaseModel):
     purchase_unit: str | None = Field(default=None, min_length=1, max_length=50)
     primary_supplier_id: UUID | None = None
     is_active: bool | None = None
+    track_inventory: bool | None = None
+    reorder_level: Decimal | None = Field(default=None, ge=0)
+    reorder_unit: str | None = Field(default=None, min_length=1, max_length=50)
 
     @field_validator("name", "purchase_unit")
     @classmethod
@@ -59,6 +65,13 @@ class ProductItemUpdate(BaseModel):
     @field_validator("purchase_unit")
     @classmethod
     def normalize_unit(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip().lower()
+
+    @field_validator("reorder_unit")
+    @classmethod
+    def normalize_reorder_unit(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip().lower()
@@ -111,6 +124,9 @@ class ProductItemResponse(ProductItemBase):
             purchase_unit=item.purchase_unit,
             primary_supplier_id=item.primary_supplier_id,
             is_active=item.is_active,
+            track_inventory=item.track_inventory,
+            reorder_level=item.reorder_level,
+            reorder_unit=item.reorder_unit,
             cost_per_unit=cost_per_unit,
             item_type=ProductItemTypeSummary.model_validate(item.item_type),
             primary_supplier=primary_supplier,

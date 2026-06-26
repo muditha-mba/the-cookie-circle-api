@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from app.core.enums import ActivityAction, ActivityResourceType
 
 _RESOURCE_BY_SEGMENT: dict[str, ActivityResourceType] = {
+    "discount-rules": ActivityResourceType.DISCOUNT_RULE,
+    "promotion-slides": ActivityResourceType.PROMOTION_SLIDE,
+    "discounts": ActivityResourceType.CUSTOMER_DISCOUNT_GRANT,
     "orders": ActivityResourceType.ORDER,
     "products": ActivityResourceType.PRODUCT,
     "customers": ActivityResourceType.CUSTOMER,
@@ -32,6 +35,9 @@ _RESOURCE_BY_SEGMENT: dict[str, ActivityResourceType] = {
     "users": ActivityResourceType.USER,
     "auth": ActivityResourceType.AUTH,
     "activity-logs": ActivityResourceType.SYSTEM,
+    "inventory": ActivityResourceType.INVENTORY_LOT,
+    "purchase-receipts": ActivityResourceType.PURCHASE_RECEIPT,
+    "consumption-proposals": ActivityResourceType.CONSUMPTION_PROPOSAL,
 }
 
 _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
@@ -48,6 +54,9 @@ _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
     ActivityResourceType.UTILITY_CHARGE: "Utility charge",
     ActivityResourceType.LABOUR_CHARGE: "Labour charge",
     ActivityResourceType.TAX_CHARGE: "Tax charge",
+    ActivityResourceType.DISCOUNT_RULE: "Discount rule",
+    ActivityResourceType.CUSTOMER_DISCOUNT_GRANT: "Customer discount grant",
+    ActivityResourceType.PROMOTION_SLIDE: "Promotion slide",
     ActivityResourceType.BUSINESS_SETTINGS: "Business settings",
     ActivityResourceType.FAQ: "FAQ",
     ActivityResourceType.FAQ_CATEGORY: "FAQ category",
@@ -59,6 +68,10 @@ _RESOURCE_LABELS: dict[ActivityResourceType, str] = {
     ActivityResourceType.USER: "User",
     ActivityResourceType.AUTH: "Authentication",
     ActivityResourceType.SYSTEM: "System",
+    ActivityResourceType.INVENTORY_LOT: "Inventory",
+    ActivityResourceType.INVENTORY_MOVEMENT: "Inventory movement",
+    ActivityResourceType.PURCHASE_RECEIPT: "Purchase receipt",
+    ActivityResourceType.CONSUMPTION_PROPOSAL: "Consumption proposal",
 }
 
 

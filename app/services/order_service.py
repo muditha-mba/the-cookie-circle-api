@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -21,8 +22,10 @@ from app.models.product import Product
 from app.repositories.collection_repository import CollectionRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.delivery_area_repository import DeliveryAreaRepository
+from app.repositories.consumption_proposal_repository import ConsumptionProposalRepository
 from app.repositories.order_repository import OrderRepository
 from app.repositories.order_review_repository import OrderReviewRepository
+from app.services.consumption_proposal_service import ConsumptionProposalService
 from app.schemas.delivery_area import DeliveryAreaSummary
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.schemas.order import (
@@ -33,7 +36,9 @@ from app.schemas.order import (
     OrderCustomerSummary,
     OrderDetailResponse,
     OrderFinancialPerformance,
+    OrderInventoryConsumptionSummary,
     OrderLifecycleTimestamps,
+    OrderPaymentSessionSummary,
     OrderPreviewRequest,
     OrderPreviewResponse,
     OrderProductLineInput,
@@ -53,6 +58,10 @@ from app.services.order_profitability_service import OrderProfitabilityService
 from app.services.order_selection_snapshot import build_order_collection_line_selection
 from app.services.order_notification_service import notify_team_new_order
 from app.services.product_cost_service import _money
+from app.services.discount_rule_evaluator import (
+    ORDER_STATUSES_COUNTING_TOWARD_DISCOUNT_RULES,
+    DiscountRuleEvaluator,
+)
 
 _STATUS_TIMESTAMP_FIELDS: dict[OrderStatus, str] = {
     OrderStatus.CONFIRMED: "confirmed_at",
@@ -61,6 +70,8 @@ _STATUS_TIMESTAMP_FIELDS: dict[OrderStatus, str] = {
     OrderStatus.DELIVERED: "delivered_at",
     OrderStatus.CANCELLED: "cancelled_at",
 }
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -83,6 +94,7 @@ class OrderService:
         self.profitability = OrderProfitabilityService(db)
         self.selection_validator = CollectionSelectionValidator(db)
         self.order_reviews = OrderReviewRepository(db)
+        self.consumption_proposals = ConsumptionProposalRepository(db)
 
     def create(self, payload: OrderCreate) -> OrderDetailResponse:
         customer = self.customers.get_by_id(payload.customer_id)
@@ -135,6 +147,10 @@ class OrderService:
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
         notify_team_new_order(loaded)
+
+        # Evaluate discount rules after order placement
+        self._evaluate_discount_rules(customer.id, loaded.id)
+
         return self._to_detail(loaded)
 
     def get(self, order_id: uuid.UUID) -> OrderDetailResponse:
@@ -286,6 +302,22 @@ class OrderService:
 
         self.db.add(order)
         self.db.commit()
+
+        if (
+            payload.status == OrderStatus.DELIVERED
+            and previous_status != OrderStatus.DELIVERED
+        ):
+            ConsumptionProposalService(self.db).refresh_for_delivery_date(
+                order.scheduled_delivery_date,
+            )
+
+        if (
+            payload.status is not None
+            and payload.status != previous_status
+            and payload.status in ORDER_STATUSES_COUNTING_TOWARD_DISCOUNT_RULES
+        ):
+            self._evaluate_discount_rules(order.customer_id, order.id)
+
         loaded = self.orders.get_by_id(order.id)
         assert loaded is not None
         return self._to_detail(loaded)
@@ -296,6 +328,13 @@ class OrderService:
             raise NotFoundError("Order not found")
         self.orders.delete(order)
         self.db.commit()
+
+    def _evaluate_discount_rules(self, customer_id: uuid.UUID, order_id: uuid.UUID) -> None:
+        try:
+            DiscountRuleEvaluator(self.db).evaluate_after_order_placed(customer_id, order_id)
+            self.db.commit()
+        except Exception:
+            logger.exception("Discount rule evaluation failed for order %s", order_id)
 
     def preview(self, payload: OrderPreviewRequest) -> OrderPreviewResponse:
         settings = self.business_settings.get_settings()
@@ -318,6 +357,8 @@ class OrderService:
             packaging_cost_snapshot=financials.packaging_cost_snapshot,
             products_cost_snapshot=financials.products_cost_snapshot,
             collections_cost_snapshot=financials.collections_cost_snapshot,
+            total_tax_snapshot=financials.total_tax_snapshot,
+            tax_lines_snapshot=financials.tax_lines_snapshot,
             total_revenue_snapshot=financials.total_revenue_snapshot,
             total_cost_snapshot=financials.total_cost_snapshot,
             total_profit_snapshot=financials.total_profit_snapshot,
@@ -605,6 +646,8 @@ class OrderService:
             delivery_cost_snapshot=order.delivery_cost_snapshot,
             package_fee_revenue_snapshot=order.package_fee_revenue_snapshot,
             packaging_cost_snapshot=order.packaging_cost_snapshot,
+            total_tax_snapshot=order.total_tax_snapshot,
+            tax_lines_snapshot=order.tax_lines_snapshot or [],
             total_revenue_snapshot=order.total_revenue_snapshot,
             financial_performance=OrderFinancialPerformance(
                 snapshot=self.profitability.financial_snapshot_from_order(order),
@@ -624,7 +667,35 @@ class OrderService:
                 delivered_at=order.delivered_at,
                 cancelled_at=order.cancelled_at,
             ),
+            inventory_consumption=OrderInventoryConsumptionSummary(
+                consumed_at=order.inventory_consumed_at,
+                applied_proposal_id=order.inventory_consumption_proposal_id,
+                pending_proposal_id=self.consumption_proposals.get_pending_proposal_id_for_order(
+                    order.id,
+                ),
+            ),
+            payment_session=_latest_payment_session_summary(order),
             customer_review=customer_review,
             created_at=order.created_at,
             updated_at=order.updated_at,
         )
+
+
+def _latest_payment_session_summary(order: "Order") -> OrderPaymentSessionSummary | None:
+    """Return a summary of the most recent payment session for admin display, if any."""
+    from app.models.payment_session import PaymentSession  # avoid circular at module level
+
+    sessions: list[PaymentSession] = order.payment_sessions
+    if not sessions:
+        return None
+    latest = max(sessions, key=lambda s: s.initiated_at)
+    return OrderPaymentSessionSummary(
+        session_id=latest.id,
+        status=latest.status,
+        amount=latest.amount,
+        gateway_reference=latest.gateway_reference,
+        initiated_at=latest.initiated_at,
+        completed_at=latest.completed_at,
+        failed_at=latest.failed_at,
+        failure_reason=latest.failure_reason,
+    )

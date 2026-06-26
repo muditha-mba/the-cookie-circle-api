@@ -75,6 +75,18 @@ class SmtpEmailService(EmailService):
         total_amount: Decimal,
         whatsapp_url: str | None = None,
         premium_packaging_notice: str | None = None,
+        products_subtotal: Decimal | None = None,
+        collections_subtotal: Decimal | None = None,
+        delivery_fee: Decimal | None = None,
+        discount_amount: Decimal | None = None,
+        discount_label: str | None = None,
+        tax_lines: list[tuple[str, Decimal]] | None = None,
+        confirmation_intro: str | None = None,
+        bank_name: str | None = None,
+        bank_account_name: str | None = None,
+        bank_account_number: str | None = None,
+        bank_branch: str | None = None,
+        bank_transfer_instructions: str | None = None,
     ) -> None:
         content = build_order_confirmation_email(
             first_name=first_name,
@@ -84,6 +96,18 @@ class SmtpEmailService(EmailService):
             total_amount=total_amount,
             whatsapp_url=whatsapp_url,
             premium_packaging_notice=premium_packaging_notice,
+            products_subtotal=products_subtotal,
+            collections_subtotal=collections_subtotal,
+            delivery_fee=delivery_fee,
+            discount_amount=discount_amount,
+            discount_label=discount_label,
+            tax_lines=tax_lines,
+            confirmation_intro=confirmation_intro,
+            bank_name=bank_name,
+            bank_account_name=bank_account_name,
+            bank_account_number=bank_account_number,
+            bank_branch=bank_branch,
+            bank_transfer_instructions=bank_transfer_instructions,
         )
         self._send(to_email=to_email, content=content)
 
@@ -104,6 +128,12 @@ class SmtpEmailService(EmailService):
         collections_subtotal: Decimal | None = None,
         package_fee_revenue: Decimal | None = None,
         delivery_fee: Decimal | None = None,
+        discount_amount: Decimal | None = None,
+        discount_label: str | None = None,
+        tax_lines: list[tuple[str, Decimal]] | None = None,
+        notification_intro: str | None = None,
+        notification_headline: str | None = None,
+        notification_eyebrow: str | None = None,
     ) -> None:
         content = build_internal_order_notification_email(
             order_number=order_number,
@@ -119,5 +149,11 @@ class SmtpEmailService(EmailService):
             collections_subtotal=collections_subtotal,
             package_fee_revenue=package_fee_revenue,
             delivery_fee=delivery_fee,
+            discount_amount=discount_amount,
+            discount_label=discount_label,
+            tax_lines=tax_lines,
+            notification_intro=notification_intro,
+            notification_headline=notification_headline,
+            notification_eyebrow=notification_eyebrow,
         )
         self._send(to_email=to_email, content=content)
