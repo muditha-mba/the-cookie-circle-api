@@ -13,10 +13,11 @@ class SupplierBase(BaseModel):
     contact_person: str | None = Field(default=None, max_length=200)
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=50)
+    address: str | None = Field(default=None, max_length=2000)
     notes: str | None = Field(default=None, max_length=10000)
     is_active: bool = True
 
-    @field_validator("supplier_name", "contact_person", "phone")
+    @field_validator("supplier_name", "contact_person", "phone", "address")
     @classmethod
     def strip_optional_strings(cls, value: str | None) -> str | None:
         if value is None:
@@ -41,10 +42,11 @@ class SupplierUpdate(BaseModel):
     contact_person: str | None = Field(default=None, max_length=200)
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=50)
+    address: str | None = Field(default=None, max_length=2000)
     notes: str | None = Field(default=None, max_length=10000)
     is_active: bool | None = None
 
-    @field_validator("supplier_name", "contact_person", "phone")
+    @field_validator("supplier_name", "contact_person", "phone", "address")
     @classmethod
     def strip_optional_strings(cls, value: str | None) -> str | None:
         if value is None:

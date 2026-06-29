@@ -29,6 +29,7 @@ class SupplierService:
             contact_person=payload.contact_person,
             email=str(payload.email) if payload.email else None,
             phone=payload.phone,
+            address=payload.address,
             notes=payload.notes,
             is_active=payload.is_active,
         )
@@ -82,6 +83,8 @@ class SupplierService:
             supplier.email = str(payload.email) if payload.email else None
         if payload.phone is not None:
             supplier.phone = payload.phone
+        if payload.address is not None:
+            supplier.address = payload.address
         if payload.notes is not None:
             supplier.notes = payload.notes
         if payload.is_active is not None:
