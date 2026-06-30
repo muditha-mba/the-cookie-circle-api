@@ -9,9 +9,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_JWT_SECRET_KEY = "change-me-in-production-use-a-long-random-secret"
 
 S3_BUCKET_BY_APP_ENV: dict[str, str] = {
-    "development": "the-cookie-circle-assets-dev",
-    "staging": "the-cookie-circle-assets-staging",
-    "production": "the-cookie-circle-assets-live",
+    "development": "the-cookie-circle-dev-assets",
+    "staging": "the-cookie-circle-staging-assets",
+    "production": "the-cookie-circle-live-assets",
 }
 
 

@@ -90,6 +90,7 @@ Before deploying with `APP_ENV=production`:
 8. Optionally enable Turnstile with `TURNSTILE_SECRET_KEY` and `CAPTCHA_REQUIRED=true`.
 9. Run database migrations, including `027_user_token_version`.
 10. Store secrets in your host environment or secrets manager — never commit `.env`.
+11. Configure production database backups — see [DATABASE_BACKUP.md](./DATABASE_BACKUP.md).
 
 ### Session invalidation
 
