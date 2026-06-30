@@ -1,0 +1,76 @@
+name: Backup production database
+
+on:
+  schedule:
+    # Layer 2 — nightly logical backup (03:00 Asia/Colombo)
+    - cron: "0 3 * * *"
+      timezone: Asia/Colombo
+  workflow_dispatch:
+    inputs:
+      prefix:
+        description: "S3 prefix (production/daily or production/manual)"
+        required: false
+        default: production/daily
+        type: choice
+        options:
+          - production/daily
+          - production/manual
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: pg_dump → S3
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run backup
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_BACKUP_REGION }}
+          S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
+          BACKUP_PREFIX: ${{ github.event.inputs.prefix || 'production/daily' }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DATABASE_URL}" ]]; then
+            echo "::error::PRODUCTION_DATABASE_URL secret is not set."
+            exit 1
+          fi
+          if [[ -z "${AWS_ACCESS_KEY_ID}" || -z "${AWS_SECRET_ACCESS_KEY}" ]]; then
+            echo "::error::AWS_BACKUP_ACCESS_KEY_ID and AWS_BACKUP_SECRET_ACCESS_KEY must be set."
+            exit 1
+          fi
+          if [[ -z "${S3_BACKUP_BUCKET}" ]]; then
+            echo "::error::S3_BACKUP_BUCKET secret is not set."
+            exit 1
+          fi
+          if [[ -z "${AWS_DEFAULT_REGION}" ]]; then
+            export AWS_DEFAULT_REGION="ap-southeast-1"
+          fi
+
+          chmod +x scripts/backup_database.sh
+          ./scripts/backup_database.sh \
+            --database-url "${DATABASE_URL}" \
+            --prefix "${BACKUP_PREFIX}" \
+            --bucket "${S3_BACKUP_BUCKET}" \
+            --label production
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "### Production database backup succeeded" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Prefix: \`${{ github.event.inputs.prefix || 'production/daily' }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Time (UTC): \`$(date -u +%Y-%m-%dT%H:%M:%SZ)\`" >> "$GITHUB_STEP_SUMMARY"
