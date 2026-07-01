@@ -192,6 +192,18 @@ class Settings(BaseSettings):
         ),
     )
 
+    # ── Google Analytics 4 (Measurement Protocol) ─────────────────────────────
+    ga4_measurement_id: str = Field(
+        default="",
+        alias="GA4_MEASUREMENT_ID",
+        description="GA4 measurement ID (G-XXXXXXXXXX). Empty disables server events.",
+    )
+    ga4_api_secret: str = Field(
+        default="",
+        alias="GA4_API_SECRET",
+        description="GA4 Measurement Protocol API secret. Empty disables server events.",
+    )
+
     aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
     aws_secret_access_key: str | None = Field(default=None, alias="AWS_SECRET_ACCESS_KEY")
     aws_region: str = Field(default="ap-southeast-1", alias="AWS_REGION")

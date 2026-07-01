@@ -38,7 +38,7 @@ def test_order_confirmation_template_includes_order_details() -> None:
         order_type_label="Weekly Delivery",
         scheduled_delivery_date=date(2026, 6, 6),
         total_amount=Decimal("4500.00"),
-        whatsapp_url="https://wa.me/94713259795",
+        whatsapp_url="https://wa.me/94711796050",
     )
     assert "TCC-2026-00042" in content.subject
     assert "Weekly Delivery" in content.html

@@ -325,6 +325,8 @@ def build_order_confirmation_email(
     scheduled_delivery_date: date,
     total_amount: Decimal,
     whatsapp_url: str | None = None,
+    order_details_message: str | None = None,
+    whatsapp_open_url: str | None = None,
     premium_packaging_notice: str | None = None,
     products_subtotal: Decimal | None = None,
     collections_subtotal: Decimal | None = None,
@@ -429,7 +431,17 @@ def build_order_confirmation_email(
       </p>"""
 
     whatsapp_follow_up_html = ""
-    if whatsapp_url:
+    if order_details_message:
+        whatsapp_follow_up_html = f"""
+      <p style="margin:12px 0 0;color:{COLOR_TEXT_MUTED};font-size:14px;">
+        Copy the order details below, open WhatsApp, paste your message, and send it to us
+        so our team can confirm your order smoothly.
+      </p>
+      <pre style="margin:14px 0 0;padding:14px 16px;border-radius:10px;white-space:pre-wrap;
+                  word-break:break-word;background:{COLOR_PARCHMENT};font-size:12px;
+                  line-height:1.55;color:{COLOR_CHOCOLATE};font-family:ui-monospace,monospace;">
+{escape(order_details_message)}</pre>"""
+    elif whatsapp_url:
         whatsapp_follow_up_html = f"""
       <p style="margin:12px 0 0;color:{COLOR_TEXT_MUTED};font-size:14px;">
         If you have not already completed your WhatsApp confirmation, please do so to help
@@ -437,8 +449,8 @@ def build_order_confirmation_email(
       </p>"""
     body_html += whatsapp_follow_up_html
 
-    cta_label = "Complete on WhatsApp" if whatsapp_url else "View our collections"
-    cta_url = whatsapp_url or settings.frontend_client_url.rstrip("/")
+    cta_label = "Open WhatsApp" if (whatsapp_open_url or whatsapp_url) else "View our collections"
+    cta_url = whatsapp_open_url or whatsapp_url or settings.frontend_client_url.rstrip("/")
 
     html = _render_layout(
         preheader=f"Your Cookie Circle order {order_number} is received.",
@@ -451,6 +463,11 @@ def build_order_confirmation_email(
     )
 
     schedule = get_delivery_schedule_copy_standalone()
+    order_details_line = (
+        f"\n\nOrder details to copy:\n{order_details_message}\n"
+        if order_details_message
+        else ""
+    )
     whatsapp_line = f"\nWhatsApp confirmation: {whatsapp_url}\n" if whatsapp_url else ""
     premium_packaging_line = (
         f"\n{premium_packaging_notice}\n" if premium_packaging_notice else ""
@@ -490,6 +507,7 @@ def build_order_confirmation_email(
         f"{premium_packaging_line}".strip(),
         f"{schedule.explanation}",
         f"{whatsapp_line}".strip(),
+        f"{order_details_line}".strip(),
     ])
     text = "\n".join(text_lines)
     return EmailContent(
