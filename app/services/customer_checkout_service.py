@@ -58,7 +58,7 @@ from app.services.business_setting_service import BusinessSettingService
 from app.services.checkout_follow_up import (
     assert_online_payment_enabled,
     build_checkout_response,
-    order_confirmation_include_whatsapp_cta,
+    order_confirmation_include_order_details_message,
     order_confirmation_intro,
 )
 from app.services.collection_selection_validator import CollectionSelectionValidator
@@ -338,9 +338,14 @@ class CustomerCheckoutService:
             self.db.commit()
             payment_session_id = payment_session.id
 
-        whatsapp_url = (
-            WhatsAppOrderMessageService.build_whatsapp_url(loaded)
-            if order_confirmation_include_whatsapp_cta(loaded.payment_method)
+        order_details_message = (
+            WhatsAppOrderMessageService.build_order_details_message(
+                loaded,
+                bank_details=settings.bank_transfer_details
+                if loaded.payment_method == PaymentMethod.BANK_TRANSFER
+                else None,
+            )
+            if order_confirmation_include_order_details_message(loaded.payment_method)
             else None
         )
         customer_email = normalize_email(payload.customer.email)
@@ -365,7 +370,12 @@ class CustomerCheckoutService:
                 order_type_label=order_type_label,
                 scheduled_delivery_date=loaded.scheduled_delivery_date,
                 total_amount=loaded.total_revenue_snapshot,
-                whatsapp_url=whatsapp_url,
+                order_details_message=order_details_message,
+                whatsapp_open_url=(
+                    WhatsAppOrderMessageService.build_whatsapp_open_url()
+                    if order_details_message
+                    else None
+                ),
                 premium_packaging_notice=premium_packaging_notice,
                 products_subtotal=loaded.products_subtotal_snapshot,
                 collections_subtotal=loaded.collections_subtotal_snapshot,

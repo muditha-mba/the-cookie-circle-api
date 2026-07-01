@@ -13,7 +13,7 @@ from app.schemas.business_settings import BankTransferDetailsResponse, BusinessS
 from app.schemas.client_ordering import ClientBankTransferInstructions, ClientCheckoutResponse
 from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
 
-CheckoutRedirectTo = Literal["whatsapp", "account_order", "online_payment"]
+CheckoutRedirectTo = Literal["order_success", "online_payment"]
 
 _ONLINE_PAYMENT_METHODS = frozenset(
     {
@@ -50,6 +50,22 @@ def build_bank_transfer_instructions(
     )
 
 
+def _build_order_details_message(
+    order: Order,
+    *,
+    business_settings: BusinessSettingsResponse,
+) -> str:
+    bank_details = (
+        business_settings.bank_transfer_details
+        if order.payment_method == PaymentMethod.BANK_TRANSFER
+        else None
+    )
+    return WhatsAppOrderMessageService.build_order_details_message(
+        order,
+        bank_details=bank_details,
+    )
+
+
 def build_checkout_response(
     order: Order,
     *,
@@ -78,7 +94,7 @@ def build_checkout_response(
         else:
             message = (
                 "Your order has been placed. Please transfer the amount using the bank "
-                "details on your order page."
+                "details shown in your confirmation."
             )
         return ClientCheckoutResponse(
             order_id=order.id,
@@ -86,10 +102,14 @@ def build_checkout_response(
             order_type=order.order_type,
             scheduled_delivery_date=order.scheduled_delivery_date,
             total_revenue_snapshot=order.total_revenue_snapshot,
-            whatsapp_url=WhatsAppOrderMessageService.build_whatsapp_url(order),
+            order_details_message=_build_order_details_message(
+                order,
+                business_settings=business_settings,
+            ),
+            whatsapp_open_url=WhatsAppOrderMessageService.build_whatsapp_open_url(),
             account_order_url=account_order_url,
             bank_transfer_instructions=instructions,
-            redirect_to="account_order",
+            redirect_to="order_success",
             account_created=account_created,
             verification_email_sent=verification_sent,
             message=message,
@@ -102,12 +122,16 @@ def build_checkout_response(
             order_type=order.order_type,
             scheduled_delivery_date=order.scheduled_delivery_date,
             total_revenue_snapshot=order.total_revenue_snapshot,
-            whatsapp_url=WhatsAppOrderMessageService.build_whatsapp_url(order),
+            order_details_message=_build_order_details_message(
+                order,
+                business_settings=business_settings,
+            ),
+            whatsapp_open_url=WhatsAppOrderMessageService.build_whatsapp_open_url(),
             account_order_url=account_order_url,
-            redirect_to="whatsapp",
+            redirect_to="order_success",
             account_created=account_created,
             verification_email_sent=verification_sent,
-            message="Order placed successfully. Complete your order on WhatsApp when ready.",
+            message="Order placed successfully. Copy your order details and send them on WhatsApp.",
         )
 
     # Online payment path (ONLINE_CARD or ONLINE_BANK_DEBIT)
@@ -153,5 +177,8 @@ def order_confirmation_intro(
     )
 
 
-def order_confirmation_include_whatsapp_cta(payment_method: PaymentMethod) -> bool:
-    return payment_method == PaymentMethod.CASH_ON_DELIVERY
+def order_confirmation_include_order_details_message(payment_method: PaymentMethod) -> bool:
+    return payment_method in {
+        PaymentMethod.CASH_ON_DELIVERY,
+        PaymentMethod.BANK_TRANSFER,
+    }

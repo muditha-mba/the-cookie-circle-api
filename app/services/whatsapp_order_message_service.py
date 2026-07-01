@@ -4,9 +4,11 @@ from decimal import Decimal
 from urllib.parse import quote
 
 from app.core.config import settings
-from app.services.client_payment_options import payment_method_label
+from app.core.enums import OrderType, PaymentMethod
 from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
+from app.schemas.business_settings import BankTransferDetailsResponse
+from app.services.client_payment_options import payment_method_label
 from app.utils.discount_format import format_discount_label
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
@@ -114,6 +116,85 @@ class WhatsAppOrderMessageService:
 
         return "\n".join(lines)
 
+    @classmethod
+    def build_order_details_message(
+        cls,
+        order: Order,
+        *,
+        bank_details: BankTransferDetailsResponse | None = None,
+    ) -> str:
+        """Full customer-facing message for clipboard copy (includes payment follow-up)."""
+        base = cls.format_message(order)
+        follow_up = cls._build_follow_up_instructions(order, bank_details=bank_details)
+        if not follow_up:
+            return base
+        return f"{base}\n\n{follow_up}"
+
+    @classmethod
+    def _build_follow_up_instructions(
+        cls,
+        order: Order,
+        *,
+        bank_details: BankTransferDetailsResponse | None,
+    ) -> str | None:
+        if order.payment_method == PaymentMethod.CASH_ON_DELIVERY:
+            return "\n".join(
+                [
+                    "*Next Step — WhatsApp*",
+                    "Please copy and send this message to us on WhatsApp so we can confirm your order.",
+                    "Payment will be collected in cash on delivery.",
+                ],
+            )
+
+        if order.payment_method != PaymentMethod.BANK_TRANSFER:
+            return None
+
+        if bank_details is None:
+            return "\n".join(
+                [
+                    "*Next Step — WhatsApp*",
+                    "Please copy and send this message to us on WhatsApp.",
+                    "After your bank transfer, share a screenshot or photo of your receipt in the same chat.",
+                ],
+            )
+
+        lines = ["*Payment — Bank Transfer*"]
+        if order.order_type == OrderType.CATERING:
+            lines.extend(
+                [
+                    "Our team will call you to confirm your event details and final total.",
+                    "Please transfer only after we confirm.",
+                    "",
+                    "When ready, transfer to:",
+                ],
+            )
+        else:
+            lines.extend(
+                [
+                    f"Please transfer *{cls._format_lkr(order.total_revenue_snapshot)}* to:",
+                ],
+            )
+
+        lines.extend(
+            [
+                f"*Bank:* {bank_details.bank_name}",
+                f"*Account Name:* {bank_details.account_name}",
+                f"*Account No:* {bank_details.account_number}",
+            ],
+        )
+        if bank_details.branch:
+            lines.append(f"*Branch:* {bank_details.branch}")
+        lines.extend(
+            [
+                "",
+                f"Use order ref *{order.order_number}* as the payment reference.",
+                "After payment, please share a screenshot or photo of your transfer receipt in WhatsApp.",
+            ],
+        )
+        if bank_details.instructions:
+            lines.extend(["", bank_details.instructions])
+        return "\n".join(lines)
+
     @staticmethod
     def _format_collection_line(line: OrderCollectionLine) -> list[str]:
         header = f"- {line.collection_name_snapshot} (x{line.quantity.normalize()} pack"
@@ -129,7 +210,15 @@ class WhatsAppOrderMessageService:
         return block
 
     @classmethod
+    def build_whatsapp_open_url(cls) -> str:
+        phone = "".join(ch for ch in settings.whatsapp_business_phone if ch.isdigit())
+        return f"https://wa.me/{phone}"
+
+    @classmethod
     def build_whatsapp_url(cls, order: Order) -> str:
         phone = "".join(ch for ch in settings.whatsapp_business_phone if ch.isdigit())
-        text = quote(cls.format_message(order), safe="")
+        text = quote(
+            cls.build_order_details_message(order),
+            safe="",
+        )
         return f"https://wa.me/{phone}?text={text}"

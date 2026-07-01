@@ -22,7 +22,11 @@ from app.schemas.client_account import (
 )
 from app.schemas.pagination import PaginatedResponse
 from app.services.business_setting_service import BusinessSettingService
-from app.services.checkout_follow_up import build_bank_transfer_instructions
+from app.services.checkout_follow_up import (
+    build_bank_transfer_instructions,
+    order_confirmation_include_order_details_message,
+)
+from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 from app.utils.search import ilike_contains
 
@@ -150,16 +154,29 @@ class ClientOrderHistoryService:
         ]
 
         bank_transfer_instructions = None
+        settings = BusinessSettingService(self.db).get_settings()
         if (
             order.payment_method == PaymentMethod.BANK_TRANSFER
             and order.payment_status == PaymentStatus.PENDING
         ):
-            settings = BusinessSettingService(self.db).get_settings()
             bank_transfer_instructions = build_bank_transfer_instructions(
                 bank_details=settings.bank_transfer_details,
                 order_number=order.order_number,
                 amount=order.total_revenue_snapshot,
             )
+
+        order_details_message = None
+        whatsapp_open_url = None
+        if order_confirmation_include_order_details_message(order.payment_method):
+            order_details_message = WhatsAppOrderMessageService.build_order_details_message(
+                order,
+                bank_details=(
+                    settings.bank_transfer_details
+                    if order.payment_method == PaymentMethod.BANK_TRANSFER
+                    else None
+                ),
+            )
+            whatsapp_open_url = WhatsAppOrderMessageService.build_whatsapp_open_url()
 
         return ClientAccountOrderDetailResponse(
             id=order.id,
@@ -189,6 +206,8 @@ class ClientOrderHistoryService:
                 order.collection_lines,
             ),
             bank_transfer_instructions=bank_transfer_instructions,
+            order_details_message=order_details_message,
+            whatsapp_open_url=whatsapp_open_url,
         )
 
     def _delivery_area_display_name(self, order: Order) -> str | None:

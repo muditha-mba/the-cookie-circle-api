@@ -268,10 +268,11 @@ class ClientCheckoutResponse(BaseModel):
     order_type: OrderType
     scheduled_delivery_date: date
     total_revenue_snapshot: Decimal
-    whatsapp_url: str | None = None
+    order_details_message: str | None = None
+    whatsapp_open_url: str | None = None
     account_order_url: str | None = None
     bank_transfer_instructions: ClientBankTransferInstructions | None = None
-    redirect_to: Literal["whatsapp", "account_order", "online_payment"]
+    redirect_to: Literal["order_success", "online_payment"]
     # Present only when redirect_to == "online_payment".
     # The client navigates the browser to this URL; the API endpoint at this URL
     # serves an HTML page with an auto-submitting form directed to WebXPay.
