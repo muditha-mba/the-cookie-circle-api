@@ -91,6 +91,23 @@ def update_product(
     return result
 
 
+@router.post(
+    "/{product_id}/duplicate",
+    response_model=ProductDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def duplicate_product(
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    product_id: uuid.UUID,
+    service: Annotated[ProductService, Depends(get_product_service)],
+) -> ProductDetailResponse:
+    """Duplicate a product and its recipe lines under a new unique name."""
+    result = service.duplicate(product_id)
+    if not can_view_financials(current_user):
+        return redact_product_detail(result)
+    return result
+
+
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(
     product_id: uuid.UUID,
