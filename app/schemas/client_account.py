@@ -194,6 +194,8 @@ class ClientAccountOrderDetailResponse(BaseModel):
     product_lines: list[ClientAccountOrderProductLine]
     premium_packaging_notice: str | None = None
     bank_transfer_instructions: ClientBankTransferInstructions | None = None
+    order_details_message: str | None = None
+    whatsapp_open_url: str | None = None
 
 
 ClientAccountDashboardResponse.model_rebuild()

@@ -289,6 +289,11 @@ class WebXPayService:
                 order_number,
                 gateway_reference,
             )
+            from app.services.ga4_measurement_protocol_service import (
+                Ga4MeasurementProtocolService,
+            )
+
+            Ga4MeasurementProtocolService.send_purchase(order)
         else:
             session.status = PaymentSessionStatus.FAILED
             session.failed_at = now

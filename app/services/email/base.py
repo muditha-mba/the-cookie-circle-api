@@ -37,6 +37,8 @@ class EmailService(ABC):
         scheduled_delivery_date: date,
         total_amount: Decimal,
         whatsapp_url: str | None = None,
+    order_details_message: str | None = None,
+    whatsapp_open_url: str | None = None,
         premium_packaging_notice: str | None = None,
         products_subtotal: Decimal | None = None,
         collections_subtotal: Decimal | None = None,
