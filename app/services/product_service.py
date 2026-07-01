@@ -24,6 +24,7 @@ from app.schemas.product import (
     RecipeLineInput,
 )
 from app.services.product_cost_service import calculate_breakdown_for_product, calculate_product_cost_breakdown
+from app.utils.product_duplicate_name import generate_duplicate_product_name
 
 
 class ProductService:
@@ -129,6 +130,42 @@ class ProductService:
             raise NotFoundError("Product not found")
         self.products.delete(product)
         self.db.commit()
+
+    def duplicate(self, product_id: uuid.UUID) -> ProductDetailResponse:
+        """Create a new product copied from an existing one, including recipe lines."""
+        source = self.products.get_by_id(product_id)
+        if not source:
+            raise NotFoundError("Product not found")
+
+        duplicate_name = generate_duplicate_product_name(
+            source.name,
+            name_exists=lambda name: self.products.get_by_name(name) is not None,
+        )
+
+        product = Product(
+            name=duplicate_name,
+            description=source.description,
+            category_id=source.category_id,
+            selling_price=source.selling_price,
+            buffer_amount=source.buffer_amount,
+            yield_quantity=source.yield_quantity,
+            production_notes=source.production_notes,
+            is_active=source.is_active,
+            is_public=source.is_public,
+            is_premium=source.is_premium,
+        )
+
+        recipe_lines = [
+            RecipeLineInput(product_item_id=line.product_item_id, quantity=line.quantity)
+            for line in source.recipe_lines
+        ]
+        self._apply_recipe_lines(product, recipe_lines)
+        self.products.create(product)
+        self.db.commit()
+
+        loaded = self.products.get_by_id(product.id)
+        assert loaded is not None
+        return self._to_detail_response(loaded)
 
     def preview_cost(self, payload: ProductCostPreviewRequest) -> ProductCostBreakdown:
         recipe_lines = self._build_preview_recipe_lines(payload.recipe_lines)
