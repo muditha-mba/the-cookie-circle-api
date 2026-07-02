@@ -27,6 +27,7 @@ class ProductRepository:
     def _detail_options(self):
         return (
             selectinload(Product.recipe_lines).joinedload(ProductRecipeLine.product_item),
+            joinedload(Product.category),
         )
 
     def get_for_costing_by_ids(self, ids: list[uuid.UUID]) -> list[Product]:

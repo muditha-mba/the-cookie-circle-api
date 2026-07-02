@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.collection import ProductCategorySummary
+
 
 class RecipeLineInput(BaseModel):
     """Recipe line for create/update/preview."""
@@ -117,5 +119,6 @@ class ProductCostBreakdown(BaseModel):
 class ProductDetailResponse(ProductSummaryResponse):
     """Product detail with recipe and breakdown."""
 
+    category: ProductCategorySummary
     recipe_lines: list[RecipeLineResponse]
     cost_breakdown: ProductCostBreakdown | None = None
