@@ -13,6 +13,7 @@ from app.models.product_recipe_line import ProductRecipeLine
 from app.repositories.product_category_repository import ProductCategoryRepository
 from app.repositories.product_item_repository import ProductItemRepository
 from app.repositories.product_repository import ProductRepository
+from app.schemas.collection import ProductCategorySummary
 from app.schemas.pagination import PaginatedResponse, PaginationParams
 from app.schemas.product import (
     ProductCostBreakdown,
@@ -234,11 +235,13 @@ class ProductService:
 
     def _to_detail_response(self, product: Product) -> ProductDetailResponse:
         breakdown = calculate_breakdown_for_product(product)
+
         return ProductDetailResponse(
             id=product.id,
             name=product.name,
             description=product.description,
             category_id=product.category_id,
+            category=ProductCategorySummary.model_validate(product.category),
             selling_price=product.selling_price,
             buffer_amount=product.buffer_amount,
             yield_quantity=product.yield_quantity,

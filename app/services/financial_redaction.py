@@ -37,6 +37,10 @@ from app.schemas.production import (
 )
 from app.schemas.product_item import ProductItemResponse
 from app.schemas.purchase_planning import PurchasePlanLine, PurchasePlanResponse
+from app.schemas.recipe_calculator import (
+    RecipeCalculatorIngredientLine,
+    RecipeCalculatorResponse,
+)
 
 
 def _zero() -> Decimal:
@@ -279,5 +283,30 @@ def redact_production_summary(summary: ProductionSummaryResponse) -> ProductionS
                 redact_packaging_line(row) for row in summary.packaging_requirements
             ],
             "fulfillment": redact_fulfillment_overview(summary.fulfillment),
+        },
+    )
+
+
+def redact_recipe_calculator_ingredient_line(
+    line: RecipeCalculatorIngredientLine,
+) -> RecipeCalculatorIngredientLine:
+    return line.model_copy(
+        update={
+            "cost_per_unit": None,
+            "scaled_line_cost": None,
+        },
+    )
+
+
+def redact_recipe_calculator_response(
+    response: RecipeCalculatorResponse,
+) -> RecipeCalculatorResponse:
+    return response.model_copy(
+        update={
+            "ingredients": [
+                redact_recipe_calculator_ingredient_line(line)
+                for line in response.ingredients
+            ],
+            "cost_summary": None,
         },
     )
