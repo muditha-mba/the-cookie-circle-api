@@ -92,3 +92,14 @@ class ProductRepository:
         if total == 0:
             return 0
         return ceil(total / page_size)
+
+    def list_recipe_calculator_eligible(self) -> list[Product]:
+        """Products with at least one recipe line and a positive yield quantity."""
+        stmt = (
+            select(Product)
+            .join(ProductRecipeLine, ProductRecipeLine.product_id == Product.id)
+            .where(Product.yield_quantity > 0)
+            .group_by(Product.id)
+            .order_by(asc(Product.name))
+        )
+        return list(self.db.scalars(stmt).all())
