@@ -59,6 +59,7 @@ from app.services.customer_discount_override_service import CustomerDiscountOver
 from app.services.discount_audit_service import DiscountAuditService
 from app.services.discount_rule_service import DiscountRuleService
 from app.services.promotion_slide_service import PromotionSlideService
+from app.services.recipe_calculator_service import RecipeCalculatorService
 
 
 def get_current_admin_user(
@@ -373,3 +374,9 @@ def get_inventory_expense_service(
     from app.services.inventory_expense_service import InventoryExpenseService
 
     return InventoryExpenseService(db)
+
+
+def get_recipe_calculator_service(
+    db: Annotated[Session, Depends(get_db)],
+) -> RecipeCalculatorService:
+    return RecipeCalculatorService(db)
