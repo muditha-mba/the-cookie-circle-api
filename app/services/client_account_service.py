@@ -27,6 +27,7 @@ from app.schemas.client_account import (
     ClientAccountProfileUpdate,
 )
 from app.services.client_order_history_service import ClientOrderHistoryService
+from app.utils.collection_display_name import format_collection_display_name
 
 
 class ClientAccountService:
@@ -40,6 +41,12 @@ class ClientAccountService:
         self.orders = OrderRepository(db)
         self.insights = CustomerInsightsRepository(db)
         self.order_history = ClientOrderHistoryService(db)
+
+    def _favourite_collection_display_name(self, customer_id) -> str | None:
+        name = self.insights.get_favourite_collection_name(customer_id)
+        if not name:
+            return None
+        return format_collection_display_name(name)
 
     def get_profile(self, customer: Customer, user: User) -> ClientAccountProfileResponse:
         return ClientAccountProfileResponse(
@@ -173,6 +180,6 @@ class ClientAccountService:
             total_collections_ordered=collection_count,
             total_reviews=total_reviews,
             favourite_cookie=self.insights.get_favourite_product_name(customer.id),
-            favourite_package_type=self.insights.get_favourite_collection_name(customer.id),
+            favourite_package_type=self._favourite_collection_display_name(customer.id),
             recent_orders=recent_orders,
         )

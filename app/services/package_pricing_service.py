@@ -10,6 +10,7 @@ from app.models.collection import Collection
 from app.models.product import Product
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.services.product_cost_service import _money, calculate_breakdown_for_product
+from app.utils.collection_packaging_fee import resolve_collection_packaging_fee
 
 
 def unit_selling_price(product: Product) -> Decimal:
@@ -27,10 +28,16 @@ def calculate_package_selling_price(
     collection: Collection,
     per_pack: dict[Product, Decimal],
 ) -> Decimal:
+    """Cookie subtotal plus packaging fee (collection type fee, with legacy fallback)."""
     cookie_total = _money(
         sum(unit_selling_price(product) * qty for product, qty in per_pack.items()),
     )
-    return _money(cookie_total + collection.package_fee)
+    cookie_count = sum(per_pack.values(), Decimal("0"))
+    packaging_fee = resolve_collection_packaging_fee(
+        collection,
+        cookie_count=cookie_count,
+    )
+    return _money(cookie_total + packaging_fee)
 
 
 def calculate_package_cost(per_pack: dict[Product, Decimal]) -> Decimal:

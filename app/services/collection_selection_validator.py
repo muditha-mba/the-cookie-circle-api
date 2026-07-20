@@ -11,6 +11,7 @@ from app.models.product import Product
 from app.repositories.product_repository import ProductRepository
 from app.schemas.client_ordering import CollectionCookieSelectionInput
 from app.services.package_pricing_service import normalize_per_pack
+from app.utils.collection_packaging_fee import collection_order_quantity_bounds
 
 
 class CollectionSelectionValidator:
@@ -31,13 +32,7 @@ class CollectionSelectionValidator:
 
         products_by_id = self._load_products(collection, selections)
         per_pack = normalize_per_pack(selections, products_by_id)
-
-        total_cookies = sum(per_pack.values(), Decimal("0"))
-        if total_cookies != Decimal(collection.package_size):
-            raise ValidationError(
-                f"'{collection.name}' requires exactly {collection.package_size} cookies per pack; "
-                f"received {total_cookies.normalize()}.",
-            )
+        self._validate_cookie_count(collection, per_pack)
 
         return [(product, qty * line_quantity) for product, qty in per_pack.items()]
 
@@ -48,7 +43,28 @@ class CollectionSelectionValidator:
         selections: list[CollectionCookieSelectionInput],
     ) -> dict[Product, Decimal]:
         products_by_id = self._load_products(collection, selections)
-        return normalize_per_pack(selections, products_by_id)
+        per_pack = normalize_per_pack(selections, products_by_id)
+        self._validate_cookie_count(collection, per_pack)
+        return per_pack
+
+    def _validate_cookie_count(
+        self,
+        collection: Collection,
+        per_pack: dict[Product, Decimal],
+    ) -> None:
+        total_cookies = sum(per_pack.values(), Decimal("0"))
+        min_qty, max_qty = collection_order_quantity_bounds(collection)
+
+        if total_cookies < Decimal(min_qty) or total_cookies > Decimal(max_qty):
+            if min_qty == max_qty:
+                raise ValidationError(
+                    f"'{collection.name}' requires exactly {min_qty} cookies; "
+                    f"received {total_cookies.normalize()}.",
+                )
+            raise ValidationError(
+                f"'{collection.name}' requires between {min_qty} and {max_qty} cookies; "
+                f"received {total_cookies.normalize()}.",
+            )
 
     def _load_products(
         self,

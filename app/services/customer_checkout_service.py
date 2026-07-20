@@ -42,7 +42,9 @@ from app.schemas.client_ordering import (
     ClientOrderPreviewResponse,
     EmailAvailabilityResponse,
 )
-from app.services.package_pricing_service import calculate_package_selling_price
+from app.services.package_pricing_service import calculate_package_selling_price, unit_selling_price
+from app.services.product_cost_service import _money
+from app.utils.collection_packaging_fee import resolve_collection_packaging_fee
 from app.schemas.order import OrderCollectionLineInput, OrderProductLineInput
 from app.services.auth_service import AuthService
 from app.services.customer_attribution_service import CustomerAttributionService
@@ -144,8 +146,28 @@ class CustomerCheckoutService:
             collection,
             selections=payload.selections,
         )
+        cookie_count = sum(per_pack.values(), Decimal("0"))
+        cookie_subtotal = _money(
+            sum(unit_selling_price(product) * qty for product, qty in per_pack.items()),
+        )
+        packaging_fee = resolve_collection_packaging_fee(
+            collection,
+            cookie_count=cookie_count,
+        )
         unit_price = calculate_package_selling_price(collection, per_pack)
-        return ClientCollectionQuoteResponse(unit_price=unit_price)
+        fee_mode = (
+            collection.package.packaging_fee_mode
+            if collection.package and collection.package.packaging_fee_amount > 0
+            else "flat"
+        )
+        if fee_mode not in ("flat", "per_cookie"):
+            fee_mode = "flat"
+        return ClientCollectionQuoteResponse(
+            unit_price=unit_price,
+            cookie_subtotal=cookie_subtotal,
+            packaging_fee=packaging_fee,
+            packaging_fee_mode=fee_mode,  # type: ignore[arg-type]
+        )
 
     def preview(
         self,
@@ -489,6 +511,7 @@ class CustomerCheckoutService:
         is_pickup: bool,
         discount_grant=None,
     ):
+        settings = self.settings.get_settings()
         return self.profitability.build_order_snapshots(
             product_lines=[
                 OrderProductLineInput(product_id=line.product_id, quantity=line.quantity)
@@ -512,6 +535,8 @@ class CustomerCheckoutService:
             delivery_fee=delivery_fee,
             is_pickup=is_pickup,
             discount_grant=discount_grant,
+            catering_packaging_fee_mode=settings.catering_packaging_fee_mode,
+            catering_packaging_fee_amount=settings.catering_packaging_fee_amount,
         )
 
     def _resolve_customer(self, payload: ClientCheckoutRequest) -> Customer:

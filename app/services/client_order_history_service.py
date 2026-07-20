@@ -27,7 +27,11 @@ from app.services.checkout_follow_up import (
     order_confirmation_include_order_details_message,
 )
 from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
-from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
+from app.utils.collection_display_name import format_collection_display_name
+from app.utils.premium_packaging_copy import (
+    premium_packaging_notice_from_collection_lines,
+    premium_packaging_notice_from_order_financials,
+)
 from app.utils.search import ilike_contains
 
 
@@ -138,7 +142,9 @@ class ClientOrderHistoryService:
             ]
             collection_lines.append(
                 ClientAccountOrderCollectionLine(
-                    collection_name=line.collection_name_snapshot,
+                    collection_name=format_collection_display_name(
+                        line.collection_name_snapshot,
+                    ),
                     quantity=line.quantity,
                     cookies=cookies,
                 ),
@@ -202,8 +208,13 @@ class ClientOrderHistoryService:
             delivery_longitude=order.delivery_longitude,
             collection_lines=collection_lines,
             product_lines=product_lines,
-            premium_packaging_notice=premium_packaging_notice_from_collection_lines(
-                order.collection_lines,
+            premium_packaging_notice=(
+                premium_packaging_notice_from_collection_lines(order.collection_lines)
+                or premium_packaging_notice_from_order_financials(
+                    package_fee_revenue=order.package_fee_revenue_snapshot or Decimal("0"),
+                    has_collection_lines=bool(order.collection_lines),
+                    has_product_lines=bool(order.product_lines),
+                )
             ),
             bank_transfer_instructions=bank_transfer_instructions,
             order_details_message=order_details_message,

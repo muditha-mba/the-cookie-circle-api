@@ -32,6 +32,10 @@ from app.services.analytics._common import (
     to_optional_date,
 )
 from app.utils.analytics_date_range import AnalyticsDateRange, resolve_analytics_date_range
+from app.utils.collection_display_name import (
+    format_collection_display_name,
+    format_package_type_display_name,
+)
 
 MONEY = Decimal("0.01")
 QTY = Decimal("0.0001")
@@ -101,7 +105,7 @@ class AnalyticsCollectionService:
             metric_label: str,
             formatter,
         ) -> CollectionAnalyticsInsightItem:
-            name = str(row["collection_name_snapshot"]) if row else None
+            name = format_collection_display_name(str(row["collection_name_snapshot"])) if row else None
             return CollectionAnalyticsInsightItem(
                 id=insight_id,
                 title=title,
@@ -144,7 +148,11 @@ class AnalyticsCollectionService:
             CollectionAnalyticsInsightItem(
                 id="fastest_growing_collection",
                 title="Fastest Growing Collection",
-                name=str(fastest["collection_name_snapshot"]) if fastest else None,
+                name=(
+                    format_collection_display_name(str(fastest["collection_name_snapshot"]))
+                    if fastest
+                    else None
+                ),
                 metric_label="Growth",
                 metric_value=str(fastest["growth_label"]) if fastest else "—",
             ),
@@ -360,7 +368,10 @@ class AnalyticsCollectionService:
                 CollectionPackageAnalyticsRow(
                     package_id=row["package_id"],  # type: ignore[arg-type]
                     package_code=str(row["package_code"]),
-                    package_name=str(row["package_name"]),
+                    package_name=format_package_type_display_name(
+                        str(row["package_name"]),
+                        package_code=str(row["package_code"]),
+                    ),
                     revenue_snapshot=revenue.quantize(MONEY),
                     cost_snapshot=Decimal(row["cost_snapshot"]).quantize(MONEY),  # type: ignore[arg-type]
                     profit_snapshot=profit.quantize(MONEY),
@@ -467,8 +478,12 @@ class AnalyticsCollectionService:
         avg_price = safe_divide(revenue, units) if units > 0 else Decimal("0.00")
         return CollectionAnalyticsRow(
             collection_id=row["collection_id"],  # type: ignore[arg-type]
-            name=str(row["collection_name_snapshot"]),
-            package_name=str(row["package_name"]) if row.get("package_name") else None,
+            name=format_collection_display_name(str(row["collection_name_snapshot"])),
+            package_name=(
+                format_package_type_display_name(str(row["package_name"]))
+                if row.get("package_name")
+                else None
+            ),
             units_sold=units.quantize(QTY),
             revenue_snapshot=revenue,
             cost_snapshot=Decimal(row["cost_snapshot"]).quantize(MONEY),  # type: ignore[arg-type]

@@ -21,6 +21,7 @@ from app.services.analytics._common import (
     to_optional_date,
 )
 from app.utils.analytics_date_range import resolve_analytics_date_range
+from app.utils.collection_display_name import format_collection_display_name
 
 
 class AnalyticsProductService:
@@ -82,12 +83,16 @@ class AnalyticsProductService:
                 str(most_profitable[0]["product_name_snapshot"]) if most_profitable else None
             ),
             most_ordered_collection_name=(
-                str(most_ordered_collection[0]["collection_name_snapshot"])
+                format_collection_display_name(
+                    str(most_ordered_collection[0]["collection_name_snapshot"]),
+                )
                 if most_ordered_collection
                 else None
             ),
             most_profitable_collection_name=(
-                str(most_profitable_collection[0]["collection_name_snapshot"])
+                format_collection_display_name(
+                    str(most_profitable_collection[0]["collection_name_snapshot"]),
+                )
                 if most_profitable_collection
                 else None
             ),
@@ -144,7 +149,11 @@ class AnalyticsProductService:
             metric_label: str,
             formatter,
         ) -> ProductAnalyticsInsightItem:
-            name = str(row["collection_name_snapshot"]) if row else None
+            name = (
+                format_collection_display_name(str(row["collection_name_snapshot"]))
+                if row
+                else None
+            )
             return ProductAnalyticsInsightItem(
                 id=insight_id,
                 title=title,

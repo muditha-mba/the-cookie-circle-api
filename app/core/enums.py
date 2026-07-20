@@ -3,6 +3,13 @@
 import enum
 
 
+class PackagingFeeMode(str, enum.Enum):
+    """How packaging fee is applied to a collection type (collection_packages)."""
+
+    FLAT = "flat"
+    PER_COOKIE = "per_cookie"
+
+
 class UserRole(str, enum.Enum):
     """Supported user roles."""
 
