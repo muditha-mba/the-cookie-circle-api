@@ -18,6 +18,7 @@ from app.models.product import Product
 from app.repositories.business_setting_repository import BusinessSettingRepository
 from app.repositories.collection_repository import CollectionRepository
 from app.repositories.product_repository import ProductRepository
+from app.utils.collection_display_name import format_collection_display_name
 from app.repositories.production_repository import ProductionRepository
 from app.schemas.production import (
     FulfillmentOrderItem,
@@ -315,7 +316,8 @@ class ProductionPlanningService:
             for line in order.collection_lines:
                 if not line.selections:
                     raise ValidationError(
-                        f"Order {order.order_number} collection line '{line.collection_name_snapshot}' "
+                        f"Order {order.order_number} collection line "
+                        f"'{format_collection_display_name(line.collection_name_snapshot)}' "
                         "has no cookie selections.",
                     )
                 for selection in line.selections:

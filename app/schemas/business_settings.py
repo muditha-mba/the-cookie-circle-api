@@ -1,10 +1,14 @@
 """Business settings Pydantic schemas."""
 
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.enums import Weekday
+
+
+PackagingFeeModeLiteral = Literal["flat", "per_cookie"]
 
 
 class BankTransferDetailsResponse(BaseModel):
@@ -31,6 +35,8 @@ class BusinessSettingsResponse(BaseModel):
     bank_transfer_enabled: bool
     cod_enabled: bool
     discounts_enabled: bool
+    catering_packaging_fee_mode: PackagingFeeModeLiteral
+    catering_packaging_fee_amount: Decimal
     bank_transfer_details: BankTransferDetailsResponse
 
 
@@ -48,6 +54,8 @@ class BusinessSettingsUpdate(BaseModel):
     bank_transfer_enabled: bool | None = None
     cod_enabled: bool | None = None
     discounts_enabled: bool | None = None
+    catering_packaging_fee_mode: PackagingFeeModeLiteral | None = None
+    catering_packaging_fee_amount: Decimal | None = Field(default=None, ge=0)
     bank_name: str | None = Field(default=None, max_length=120)
     bank_account_name: str | None = Field(default=None, max_length=120)
     bank_account_number: str | None = Field(default=None, max_length=40)

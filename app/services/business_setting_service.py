@@ -57,6 +57,8 @@ class BusinessSettingService:
         keys.SHARED_MEMORIES_ENABLED: "false",
         keys.FAQS_ENABLED: "true",
         keys.DISCOUNTS_ENABLED: "false",
+        keys.CATERING_PACKAGING_FEE_MODE: "flat",
+        keys.CATERING_PACKAGING_FEE_AMOUNT: "0.00",
     }
 
     def __init__(self, db: Session) -> None:
@@ -96,6 +98,12 @@ class BusinessSettingService:
             current[keys.COD_ENABLED] = str(payload.cod_enabled).lower()
         if payload.discounts_enabled is not None:
             current[keys.DISCOUNTS_ENABLED] = str(payload.discounts_enabled).lower()
+        if payload.catering_packaging_fee_mode is not None:
+            current[keys.CATERING_PACKAGING_FEE_MODE] = payload.catering_packaging_fee_mode
+        if payload.catering_packaging_fee_amount is not None:
+            current[keys.CATERING_PACKAGING_FEE_AMOUNT] = str(
+                payload.catering_packaging_fee_amount,
+            )
         if payload.bank_name is not None:
             current[keys.BANK_NAME] = payload.bank_name
         if payload.bank_account_name is not None:
@@ -246,8 +254,15 @@ class BusinessSettingService:
     def _to_response(self, data: dict[str, str]) -> BusinessSettingsResponse:
         try:
             delivery_fee = Decimal(data[keys.DELIVERY_FEE])
+            catering_packaging_fee_amount = Decimal(
+                data.get(keys.CATERING_PACKAGING_FEE_AMOUNT, "0.00"),
+            )
         except InvalidOperation as exc:
-            raise ValidationError("Invalid delivery_fee setting") from exc
+            raise ValidationError("Invalid money amount in business settings") from exc
+
+        fee_mode = data.get(keys.CATERING_PACKAGING_FEE_MODE, "flat").strip().lower()
+        if fee_mode not in {"flat", "per_cookie"}:
+            fee_mode = "flat"
 
         return BusinessSettingsResponse(
             delivery_fee=delivery_fee,
@@ -261,6 +276,8 @@ class BusinessSettingService:
             bank_transfer_enabled=data[keys.BANK_TRANSFER_ENABLED].lower() == "true",
             cod_enabled=data[keys.COD_ENABLED].lower() == "true",
             discounts_enabled=data.get(keys.DISCOUNTS_ENABLED, "false").lower() == "true",
+            catering_packaging_fee_mode=fee_mode,  # type: ignore[arg-type]
+            catering_packaging_fee_amount=catering_packaging_fee_amount,
             bank_transfer_details=BankTransferDetailsResponse(
                 bank_name=data[keys.BANK_NAME],
                 account_name=data[keys.BANK_ACCOUNT_NAME],
