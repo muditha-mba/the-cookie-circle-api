@@ -3,12 +3,20 @@
 from datetime import date
 from decimal import Decimal
 
+from app.core.enums import PaymentMethod
+from app.services.email.order_summary import (
+    OrderEmailCollectionBlock,
+    OrderEmailCookieLine,
+    OrderEmailProductLine,
+    OrderEmailSummary,
+)
 from app.services.email.templates import (
     build_internal_order_notification_email,
     build_order_confirmation_email,
     build_verification_email,
     build_welcome_email,
 )
+from app.services.client_payment_options import payment_method_label
 
 
 def test_verification_template_contains_brand_and_cta() -> None:
@@ -31,19 +39,89 @@ def test_welcome_template_is_responsive_table_layout() -> None:
     assert "@media only screen and (max-width: 620px)" in content.html
 
 
-def test_order_confirmation_template_includes_order_details() -> None:
+def test_order_confirmation_template_has_summary_without_whatsapp() -> None:
+    summary = OrderEmailSummary(
+        order_type_label="Catering",
+        collection_blocks=(),
+        product_lines=(
+            OrderEmailProductLine(name="Smarties Cookie", quantity_label="5"),
+            OrderEmailProductLine(name="Unicorn Cookie", quantity_label="7"),
+        ),
+        packages_subtotal=None,
+        cookies_subtotal=Decimal("8166.00"),
+        delivery_fee=Decimal("350.00"),
+        discount_amount=None,
+        discount_label=None,
+        tax_lines=(),
+        total=Decimal("8516.00"),
+        premium_packaging_notice=None,
+        payment_method_label=payment_method_label(PaymentMethod.BANK_TRANSFER),
+    )
+    content = build_order_confirmation_email(
+        first_name="Sam",
+        order_number="WEB-20260722-0002",
+        order_type_label="Catering",
+        scheduled_delivery_date=date(2026, 8, 1),
+        total_amount=Decimal("8516.00"),
+        order_summary=summary,
+        products_subtotal=Decimal("8166.00"),
+        delivery_fee=Decimal("350.00"),
+    )
+    assert "WEB-20260722-0002" in content.subject
+    assert "Order summary" in content.html
+    assert "Smarties Cookie" in content.html
+    assert "×5" in content.html
+    assert "Cookies subtotal" in content.html
+    assert "LKR 8,516.00" in content.html
+    assert "Payment method" in content.html
+    assert "Bank transfer" in content.html
+    assert "View our collections" in content.html
+    assert "Open WhatsApp" not in content.html
+    assert "wa.me" not in content.html
+    assert "Copy the order details" not in content.html
+    assert "message us on WhatsApp" not in content.html
+    assert "Smarties Cookie ×5" in content.text
+
+
+def test_order_confirmation_template_includes_collection_blocks() -> None:
+    summary = OrderEmailSummary(
+        order_type_label="Weekly Delivery",
+        collection_blocks=(
+            OrderEmailCollectionBlock(
+                title="Chocolate Chip Cookie Collection",
+                cookies=(
+                    OrderEmailCookieLine(
+                        name="Classic Chocolate Chip Cookie",
+                        quantity_label="3",
+                    ),
+                ),
+            ),
+        ),
+        product_lines=(),
+        packages_subtotal=Decimal("4903.00"),
+        cookies_subtotal=None,
+        delivery_fee=Decimal("350.00"),
+        discount_amount=None,
+        discount_label=None,
+        tax_lines=(),
+        total=Decimal("5253.00"),
+        premium_packaging_notice="Packaging fee included",
+        payment_method_label=payment_method_label(PaymentMethod.BANK_TRANSFER),
+    )
     content = build_order_confirmation_email(
         first_name="Sam",
         order_number="TCC-2026-00042",
         order_type_label="Weekly Delivery",
         scheduled_delivery_date=date(2026, 6, 6),
-        total_amount=Decimal("4500.00"),
-        whatsapp_url="https://wa.me/94711796050",
+        total_amount=Decimal("5253.00"),
+        order_summary=summary,
+        premium_packaging_notice="Packaging fee included",
     )
-    assert "TCC-2026-00042" in content.subject
-    assert "Weekly Delivery" in content.html
-    assert "LKR 4,500.00" in content.html
-    assert "wa.me" in content.html
+    assert "Chocolate Chip Cookie Collection" in content.html
+    assert "Classic Chocolate Chip Cookie" in content.html
+    assert "Packages subtotal" in content.html
+    assert "Packaging fee included" in content.html
+    assert "Packaging fee included" in content.text
 
 
 def test_order_confirmation_template_includes_premium_packaging_notice() -> None:

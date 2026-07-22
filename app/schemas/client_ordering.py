@@ -10,6 +10,11 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 from app.core.enums import OrderType, PaymentMethod, Weekday
 from app.schemas.attribution import MarketingAttributionInput
 from app.schemas.order_profitability import OrderFinancialSnapshot
+from app.utils.phone import (
+    PHONE_MAX_INPUT_LENGTH,
+    validate_optional_phone,
+    validate_phone_number,
+)
 
 
 class CollectionCookieSelectionInput(BaseModel):
@@ -198,8 +203,8 @@ class ClientCheckoutCustomer(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    phone: str = Field(min_length=5, max_length=50)
-    phone_secondary: str | None = Field(default=None, max_length=50)
+    phone: str = Field(min_length=5, max_length=PHONE_MAX_INPUT_LENGTH)
+    phone_secondary: str | None = Field(default=None, max_length=PHONE_MAX_INPUT_LENGTH)
     shipping_address: ClientCheckoutAddress
     billing_same_as_shipping: bool = True
     billing_address: ClientCheckoutAddress | None = None
@@ -207,6 +212,16 @@ class ClientCheckoutCustomer(BaseModel):
     delivery_longitude: Decimal | None = None
     order_notes: str | None = Field(default=None, max_length=5000)
     event_name: str | None = Field(default=None, max_length=200)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        return validate_phone_number(value)
+
+    @field_validator("phone_secondary")
+    @classmethod
+    def validate_phone_secondary(cls, value: str | None) -> str | None:
+        return validate_optional_phone(value)
 
     @model_validator(mode="after")
     def validate_billing_address(self) -> "ClientCheckoutCustomer":
