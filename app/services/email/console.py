@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 from app.services.email.base import EmailService
+from app.services.email.order_summary import OrderEmailSummary
 from app.services.email.templates import (
     build_internal_order_notification_email,
     build_order_confirmation_email,
@@ -67,9 +68,7 @@ class ConsoleEmailService(EmailService):
         order_type_label: str,
         scheduled_delivery_date: date,
         total_amount: Decimal,
-        whatsapp_url: str | None = None,
-        order_details_message: str | None = None,
-        whatsapp_open_url: str | None = None,
+        order_summary: OrderEmailSummary | None = None,
         premium_packaging_notice: str | None = None,
         products_subtotal: Decimal | None = None,
         collections_subtotal: Decimal | None = None,
@@ -90,9 +89,7 @@ class ConsoleEmailService(EmailService):
             order_type_label=order_type_label,
             scheduled_delivery_date=scheduled_delivery_date,
             total_amount=total_amount,
-            whatsapp_url=whatsapp_url,
-            order_details_message=order_details_message,
-            whatsapp_open_url=whatsapp_open_url,
+            order_summary=order_summary,
             premium_packaging_notice=premium_packaging_notice,
             products_subtotal=products_subtotal,
             collections_subtotal=collections_subtotal,
