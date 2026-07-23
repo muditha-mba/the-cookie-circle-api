@@ -119,6 +119,8 @@ class OrderService:
             collection_lines=payload.collection_lines,
             delivery_fee=delivery_fee,
             is_pickup=is_pickup,
+            catering_packaging_fee_mode=settings.catering_packaging_fee_mode,
+            catering_packaging_fee_amount=settings.catering_packaging_fee_amount,
         )
 
         order = Order(
@@ -284,6 +286,8 @@ class OrderService:
                 collection_lines=collection_inputs,
                 delivery_fee=delivery_fee,
                 is_pickup=is_pickup,
+                catering_packaging_fee_mode=settings.catering_packaging_fee_mode,
+                catering_packaging_fee_amount=settings.catering_packaging_fee_amount,
             )
             order.product_lines.clear()
             order.collection_lines.clear()
@@ -346,6 +350,8 @@ class OrderService:
             collection_lines=payload.collection_lines,
             delivery_fee=delivery_fee,
             is_pickup=is_pickup,
+            catering_packaging_fee_mode=settings.catering_packaging_fee_mode,
+            catering_packaging_fee_amount=settings.catering_packaging_fee_amount,
         )
         financials = snapshot_result.financials
         return OrderPreviewResponse(

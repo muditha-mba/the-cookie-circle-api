@@ -34,6 +34,10 @@ class CollectionPackageService:
             description=payload.description,
             badge_tone=payload.badge_tone,
             is_active=payload.is_active,
+            min_quantity=payload.min_quantity,
+            max_quantity=payload.max_quantity,
+            packaging_fee_mode=payload.packaging_fee_mode,
+            packaging_fee_amount=payload.packaging_fee_amount,
         )
         self.packages.create(package)
         self.db.commit()
@@ -85,6 +89,19 @@ class CollectionPackageService:
             package.badge_tone = payload.badge_tone
         if payload.is_active is not None:
             package.is_active = payload.is_active
+        if payload.min_quantity is not None:
+            package.min_quantity = payload.min_quantity
+        if payload.max_quantity is not None:
+            package.max_quantity = payload.max_quantity
+        if payload.packaging_fee_mode is not None:
+            package.packaging_fee_mode = payload.packaging_fee_mode
+        if payload.packaging_fee_amount is not None:
+            package.packaging_fee_amount = payload.packaging_fee_amount
+
+        min_qty = package.min_quantity
+        max_qty = package.max_quantity
+        if max_qty < min_qty:
+            raise ValidationError("max_quantity must be greater than or equal to min_quantity")
 
         self.db.add(package)
         self.db.commit()

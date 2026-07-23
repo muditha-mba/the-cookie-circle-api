@@ -9,6 +9,7 @@ from html import escape
 
 from app.core.config import settings
 from app.services.delivery_schedule_copy_service import get_delivery_schedule_copy_standalone
+from app.services.email.order_summary import OrderEmailSummary
 
 # Kandyan Luxury palette (aligned with client globals.css)
 COLOR_CREAM = "#FAF6F0"
@@ -324,9 +325,7 @@ def build_order_confirmation_email(
     order_type_label: str,
     scheduled_delivery_date: date,
     total_amount: Decimal,
-    whatsapp_url: str | None = None,
-    order_details_message: str | None = None,
-    whatsapp_open_url: str | None = None,
+    order_summary: OrderEmailSummary | None = None,
     premium_packaging_notice: str | None = None,
     products_subtotal: Decimal | None = None,
     collections_subtotal: Decimal | None = None,
@@ -341,32 +340,12 @@ def build_order_confirmation_email(
     bank_branch: str | None = None,
     bank_transfer_instructions: str | None = None,
 ) -> EmailContent:
-    safe_name = escape(first_name.strip() or "there")
-
-    # Build breakdown rows when detail is available
-    breakdown_rows: list[tuple[str, str]] = []
-    if products_subtotal is not None and products_subtotal > 0:
-        breakdown_rows.append(("Cookies", escape(_format_lkr(products_subtotal))))
-    if collections_subtotal is not None and collections_subtotal > 0:
-        breakdown_rows.append(("Packages", escape(_format_lkr(collections_subtotal))))
-    if delivery_fee is not None and delivery_fee > 0:
-        breakdown_rows.append(("Delivery", escape(_format_lkr(delivery_fee))))
-    if discount_amount is not None and discount_amount > 0:
-        label = escape(discount_label or "Discount")
-        breakdown_rows.append((label, f"<span style='color:#2d6a2d'>− {escape(_format_lkr(discount_amount))}</span>"))
-    if tax_lines:
-        for tax_label, tax_applied in tax_lines:
-            breakdown_rows.append((escape(tax_label), escape(_format_lkr(tax_applied))))
-
-    details_rows = [
+    meta_rows = [
         ("Order number", escape(order_number)),
         ("Order type", escape(order_type_label)),
         ("Scheduled delivery", escape(_format_date(scheduled_delivery_date))),
     ]
-    details_rows.extend(breakdown_rows)
-    details_rows.append(("Customer total", escape(_format_lkr(total_amount))))
-
-    details_html = "".join(
+    meta_html = "".join(
         f"""
         <tr>
           <td style="padding:10px 0;border-bottom:1px solid {COLOR_PARCHMENT};
@@ -374,17 +353,21 @@ def build_order_confirmation_email(
           <td style="padding:10px 0;border-bottom:1px solid {COLOR_PARCHMENT};
                      font-size:14px;color:{COLOR_CHOCOLATE};font-weight:600;">{value}</td>
         </tr>"""
-        for label, value in details_rows
+        for label, value in meta_rows
     )
 
-    premium_packaging_html = ""
-    if premium_packaging_notice:
-        premium_packaging_html = f"""
-      <p style="margin:0 0 18px;padding:12px 14px;border-radius:10px;
-                background:{COLOR_PARCHMENT};font-size:13px;line-height:1.5;
-                color:{COLOR_CHOCOLATE};">
-        🎁 {escape(premium_packaging_notice)}
-      </p>"""
+    summary_html = _render_order_summary_html(
+        order_summary=order_summary,
+        order_type_label=order_type_label,
+        total_amount=total_amount,
+        products_subtotal=products_subtotal,
+        collections_subtotal=collections_subtotal,
+        delivery_fee=delivery_fee,
+        discount_amount=discount_amount,
+        discount_label=discount_label,
+        tax_lines=tax_lines,
+        premium_packaging_notice=premium_packaging_notice,
+    )
 
     body_intro = confirmation_intro or (
         f"Thank you, {first_name.strip() or 'there'}. We have received your order and our team "
@@ -424,73 +407,48 @@ def build_order_confirmation_email(
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
              style="margin:0 0 18px;border-collapse:collapse;">
-        {details_html}
-      </table>{premium_packaging_html}{bank_transfer_html}
+        {meta_html}
+      </table>
+      {summary_html}
+      {bank_transfer_html}
       <p style="margin:0;color:{COLOR_TEXT_MUTED};font-size:14px;">
         {escape(get_delivery_schedule_copy_standalone().explanation)}
       </p>"""
 
-    whatsapp_follow_up_html = ""
-    if order_details_message:
-        whatsapp_follow_up_html = f"""
-      <p style="margin:12px 0 0;color:{COLOR_TEXT_MUTED};font-size:14px;">
-        Copy the order details below, open WhatsApp, paste your message, and send it to us
-        so our team can confirm your order smoothly.
-      </p>
-      <pre style="margin:14px 0 0;padding:14px 16px;border-radius:10px;white-space:pre-wrap;
-                  word-break:break-word;background:{COLOR_PARCHMENT};font-size:12px;
-                  line-height:1.55;color:{COLOR_CHOCOLATE};font-family:ui-monospace,monospace;">
-{escape(order_details_message)}</pre>"""
-    elif whatsapp_url:
-        whatsapp_follow_up_html = f"""
-      <p style="margin:12px 0 0;color:{COLOR_TEXT_MUTED};font-size:14px;">
-        If you have not already completed your WhatsApp confirmation, please do so to help
-        our team finalize your order smoothly.
-      </p>"""
-    body_html += whatsapp_follow_up_html
-
-    cta_label = "Open WhatsApp" if (whatsapp_open_url or whatsapp_url) else "View our collections"
-    cta_url = whatsapp_open_url or whatsapp_url or settings.frontend_client_url.rstrip("/")
-
+    site_url = settings.frontend_client_url.rstrip("/")
     html = _render_layout(
         preheader=f"Your Cookie Circle order {order_number} is received.",
         eyebrow="Order received",
         headline="Thank you for your order",
         body_html=body_html,
-        cta_label=cta_label,
-        cta_url=cta_url,
-        footer_note="Questions? Reply to this email or message us on WhatsApp.",
+        cta_label="View our collections",
+        cta_url=site_url,
+        footer_note="Questions? Reply to this email — we are happy to help.",
     )
 
     schedule = get_delivery_schedule_copy_standalone()
-    order_details_line = (
-        f"\n\nOrder details to copy:\n{order_details_message}\n"
-        if order_details_message
-        else ""
-    )
-    whatsapp_line = f"\nWhatsApp confirmation: {whatsapp_url}\n" if whatsapp_url else ""
-    premium_packaging_line = (
-        f"\n{premium_packaging_notice}\n" if premium_packaging_notice else ""
-    )
     text_lines = [
         f"{_subject_prefix()}Your Cookie Circle order {order_number}\n",
         f"{body_intro}\n",
         f"Order number: {order_number}",
         f"Order type: {order_type_label}",
         f"Scheduled delivery: {_format_date(scheduled_delivery_date)}",
+        "",
+        "Order summary",
     ]
-    if products_subtotal is not None and products_subtotal > 0:
-        text_lines.append(f"Cookies: {_format_lkr(products_subtotal)}")
-    if collections_subtotal is not None and collections_subtotal > 0:
-        text_lines.append(f"Packages: {_format_lkr(collections_subtotal)}")
-    if delivery_fee is not None and delivery_fee > 0:
-        text_lines.append(f"Delivery: {_format_lkr(delivery_fee)}")
-    if discount_amount is not None and discount_amount > 0:
-        text_lines.append(f"{discount_label or 'Discount'}: − {_format_lkr(discount_amount)}")
-    if tax_lines:
-        for tax_label, tax_applied in tax_lines:
-            text_lines.append(f"{tax_label}: {_format_lkr(tax_applied)}")
-    text_lines.append(f"Customer total: {_format_lkr(total_amount)}")
+    text_lines.extend(
+        _render_order_summary_text(
+            order_summary=order_summary,
+            total_amount=total_amount,
+            products_subtotal=products_subtotal,
+            collections_subtotal=collections_subtotal,
+            delivery_fee=delivery_fee,
+            discount_amount=discount_amount,
+            discount_label=discount_label,
+            tax_lines=tax_lines,
+            premium_packaging_notice=premium_packaging_notice,
+        ),
+    )
     if bank_name and bank_account_number:
         text_lines.append("")
         text_lines.append("Bank transfer details:")
@@ -502,19 +460,250 @@ def build_order_confirmation_email(
         text_lines.append(f"Reference: {order_number}")
         if bank_transfer_instructions:
             text_lines.append(bank_transfer_instructions)
-    text_lines.extend([
-        "",
-        f"{premium_packaging_line}".strip(),
-        f"{schedule.explanation}",
-        f"{whatsapp_line}".strip(),
-        f"{order_details_line}".strip(),
-    ])
+    text_lines.extend(["", schedule.explanation])
     text = "\n".join(text_lines)
     return EmailContent(
         subject=f"{_subject_prefix()}Your Cookie Circle order {order_number}",
         html=html,
         text=text,
     )
+
+
+def _dashed_rule_html() -> str:
+    return f"""
+      <tr>
+        <td colspan="2" style="padding:12px 0;">
+          <div style="border-top:1px dashed {COLOR_PARCHMENT};font-size:0;line-height:0;">&nbsp;</div>
+        </td>
+      </tr>"""
+
+
+def _money_row_html(label: str, value_html: str, *, emphasize: bool = False) -> str:
+    label_weight = "700" if emphasize else "400"
+    value_weight = "700" if emphasize else "600"
+    label_size = "15px" if emphasize else "13px"
+    value_size = "15px" if emphasize else "14px"
+    return f"""
+      <tr>
+        <td style="padding:6px 0;font-size:{label_size};font-weight:{label_weight};
+                   color:{COLOR_TEXT_MUTED if not emphasize else COLOR_CHOCOLATE};">{label}</td>
+        <td align="right" style="padding:6px 0;font-size:{value_size};font-weight:{value_weight};
+                   color:{COLOR_CHOCOLATE};white-space:nowrap;">{value_html}</td>
+      </tr>"""
+
+
+def _render_order_summary_html(
+    *,
+    order_summary: OrderEmailSummary | None,
+    order_type_label: str,
+    total_amount: Decimal,
+    products_subtotal: Decimal | None,
+    collections_subtotal: Decimal | None,
+    delivery_fee: Decimal | None,
+    discount_amount: Decimal | None,
+    discount_label: str | None,
+    tax_lines: list[tuple[str, Decimal]] | None,
+    premium_packaging_notice: str | None,
+) -> str:
+    items_html = ""
+    if order_summary:
+        for block in order_summary.collection_blocks:
+            cookie_rows = "".join(
+                f"""
+                <tr>
+                  <td style="padding:3px 0;font-size:13px;color:{COLOR_TEXT_MUTED};">
+                    {escape(cookie.name)}
+                  </td>
+                  <td align="right" style="padding:3px 0;font-size:13px;color:{COLOR_TEXT_MUTED};
+                             white-space:nowrap;">×{escape(cookie.quantity_label)}</td>
+                </tr>"""
+                for cookie in block.cookies
+            )
+            items_html += f"""
+              <tr>
+                <td colspan="2" style="padding:10px 0 4px;font-size:14px;font-weight:600;
+                           color:{COLOR_CHOCOLATE};">{escape(block.title)}</td>
+              </tr>
+              {cookie_rows}"""
+
+        for product in order_summary.product_lines:
+            items_html += f"""
+              <tr>
+                <td style="padding:6px 0;font-size:14px;color:{COLOR_CHOCOLATE};">
+                  {escape(product.name)}
+                </td>
+                <td align="right" style="padding:6px 0;font-size:13px;color:{COLOR_TEXT_MUTED};
+                           white-space:nowrap;">×{escape(product.quantity_label)}</td>
+              </tr>"""
+
+    packages = (
+        order_summary.packages_subtotal
+        if order_summary and order_summary.packages_subtotal is not None
+        else collections_subtotal
+    )
+    cookies = (
+        order_summary.cookies_subtotal
+        if order_summary and order_summary.cookies_subtotal is not None
+        else products_subtotal
+    )
+    delivery = (
+        order_summary.delivery_fee
+        if order_summary and order_summary.delivery_fee is not None
+        else delivery_fee
+    )
+    discount = (
+        order_summary.discount_amount
+        if order_summary and order_summary.discount_amount is not None
+        else discount_amount
+    )
+    discount_name = (
+        (order_summary.discount_label if order_summary else None) or discount_label or "Discount"
+    )
+    resolved_tax_lines = (
+        list(order_summary.tax_lines) if order_summary and order_summary.tax_lines else (tax_lines or [])
+    )
+    total = order_summary.total if order_summary else total_amount
+    packaging_notice = (
+        (order_summary.premium_packaging_notice if order_summary else None)
+        or premium_packaging_notice
+    )
+    payment_label = order_summary.payment_method_label if order_summary else None
+    subtitle = order_summary.order_type_label if order_summary else order_type_label
+
+    totals_html = ""
+    if cookies is not None and cookies > 0:
+        totals_html += _money_row_html("Cookies subtotal", escape(_format_lkr(cookies)))
+    if packages is not None and packages > 0:
+        totals_html += _money_row_html("Packages subtotal", escape(_format_lkr(packages)))
+    if delivery is not None:
+        totals_html += _money_row_html("Delivery", escape(_format_lkr(delivery)))
+    if discount is not None and discount > 0:
+        totals_html += _money_row_html(
+            escape(discount_name),
+            f"<span style='color:#2d6a2d'>− {escape(_format_lkr(discount))}</span>",
+        )
+    for tax_label, tax_applied in resolved_tax_lines:
+        totals_html += _money_row_html(escape(tax_label), escape(_format_lkr(tax_applied)))
+
+    packaging_html = ""
+    if packaging_notice:
+        packaging_html = f"""
+      <tr>
+        <td colspan="2" style="padding:10px 0 4px;">
+          <div style="display:inline-block;padding:8px 12px;border-radius:999px;
+                      background:{COLOR_PARCHMENT};font-size:12px;color:{COLOR_CHOCOLATE};">
+            🎁 {escape(packaging_notice)}
+          </div>
+        </td>
+      </tr>"""
+
+    payment_html = ""
+    if payment_label:
+        payment_html = f"""
+      <tr>
+        <td colspan="2" style="padding-top:14px;">
+          <div style="padding:14px 16px;border-radius:12px;border:1px solid {COLOR_PARCHMENT};
+                      background:{COLOR_IVORY};">
+            <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
+                      color:{COLOR_TEXT_MUTED};">Payment method</p>
+            <p style="margin:0;font-size:14px;font-weight:600;color:{COLOR_CHOCOLATE};">
+              {escape(payment_label)}
+            </p>
+          </div>
+        </td>
+      </tr>"""
+
+    return f"""
+      <div style="margin:0 0 18px;padding:16px 16px 14px;border-radius:14px;
+                  border:1px solid {COLOR_PARCHMENT};background:{COLOR_CREAM};">
+        <p style="margin:0 0 4px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;
+                  color:{COLOR_TEXT_MUTED};">Order summary</p>
+        <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:{COLOR_CHOCOLATE};">
+          {escape(subtitle)}
+        </p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+               style="border-collapse:collapse;">
+          {_dashed_rule_html()}
+          {items_html}
+          {_dashed_rule_html() if items_html else ""}
+          {totals_html}
+          {packaging_html}
+          {_dashed_rule_html()}
+          {_money_row_html("Total", escape(_format_lkr(total)), emphasize=True)}
+          {payment_html}
+        </table>
+      </div>"""
+
+
+def _render_order_summary_text(
+    *,
+    order_summary: OrderEmailSummary | None,
+    total_amount: Decimal,
+    products_subtotal: Decimal | None,
+    collections_subtotal: Decimal | None,
+    delivery_fee: Decimal | None,
+    discount_amount: Decimal | None,
+    discount_label: str | None,
+    tax_lines: list[tuple[str, Decimal]] | None,
+    premium_packaging_notice: str | None,
+) -> list[str]:
+    lines: list[str] = []
+    if order_summary:
+        for block in order_summary.collection_blocks:
+            lines.append(block.title)
+            for cookie in block.cookies:
+                lines.append(f"  - {cookie.name} ×{cookie.quantity_label}")
+        for product in order_summary.product_lines:
+            lines.append(f"{product.name} ×{product.quantity_label}")
+
+    packages = (
+        order_summary.packages_subtotal
+        if order_summary and order_summary.packages_subtotal is not None
+        else collections_subtotal
+    )
+    cookies = (
+        order_summary.cookies_subtotal
+        if order_summary and order_summary.cookies_subtotal is not None
+        else products_subtotal
+    )
+    delivery = (
+        order_summary.delivery_fee
+        if order_summary and order_summary.delivery_fee is not None
+        else delivery_fee
+    )
+    discount = (
+        order_summary.discount_amount
+        if order_summary and order_summary.discount_amount is not None
+        else discount_amount
+    )
+    discount_name = (
+        (order_summary.discount_label if order_summary else None) or discount_label or "Discount"
+    )
+    resolved_tax_lines = (
+        list(order_summary.tax_lines) if order_summary and order_summary.tax_lines else (tax_lines or [])
+    )
+    total = order_summary.total if order_summary else total_amount
+    packaging_notice = (
+        (order_summary.premium_packaging_notice if order_summary else None)
+        or premium_packaging_notice
+    )
+
+    if cookies is not None and cookies > 0:
+        lines.append(f"Cookies subtotal: {_format_lkr(cookies)}")
+    if packages is not None and packages > 0:
+        lines.append(f"Packages subtotal: {_format_lkr(packages)}")
+    if delivery is not None:
+        lines.append(f"Delivery: {_format_lkr(delivery)}")
+    if discount is not None and discount > 0:
+        lines.append(f"{discount_name}: − {_format_lkr(discount)}")
+    for tax_label, tax_applied in resolved_tax_lines:
+        lines.append(f"{tax_label}: {_format_lkr(tax_applied)}")
+    if packaging_notice:
+        lines.append(packaging_notice)
+    lines.append(f"Total: {_format_lkr(total)}")
+    if order_summary and order_summary.payment_method_label:
+        lines.append(f"Payment method: {order_summary.payment_method_label}")
+    return lines
 
 
 def build_internal_order_notification_email(

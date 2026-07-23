@@ -9,6 +9,7 @@ from app.models.order import Order
 from app.models.order_collection_line import OrderCollectionLine
 from app.schemas.business_settings import BankTransferDetailsResponse
 from app.services.client_payment_options import payment_method_label
+from app.utils.collection_display_name import format_collection_display_name
 from app.utils.discount_format import format_discount_label
 from app.utils.premium_packaging_copy import premium_packaging_notice_from_collection_lines
 
@@ -197,7 +198,8 @@ class WhatsAppOrderMessageService:
 
     @staticmethod
     def _format_collection_line(line: OrderCollectionLine) -> list[str]:
-        header = f"- {line.collection_name_snapshot} (x{line.quantity.normalize()} pack"
+        display_name = format_collection_display_name(line.collection_name_snapshot)
+        header = f"- {display_name} (x{line.quantity.normalize()} pack"
         header += "s)" if line.quantity != Decimal("1") else ")"
 
         block = [header]

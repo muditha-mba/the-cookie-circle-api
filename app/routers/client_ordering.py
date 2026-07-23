@@ -126,11 +126,18 @@ def get_weekly_delivery_info(
 
 
 @router.get("/ordering/catering-constraints", response_model=CateringConstraintsResponse)
-def get_catering_constraints() -> CateringConstraintsResponse:
+def get_catering_constraints(
+    db: Annotated[Session, Depends(get_db)],
+) -> CateringConstraintsResponse:
+    settings = BusinessSettingService(db).get_settings()
+    fee_amount = settings.catering_packaging_fee_amount
     return CateringConstraintsResponse(
         minimum_cookie_quantity=CATERING_MIN_COOKIE_QUANTITY,
         minimum_days_ahead=CATERING_MIN_DAYS_AHEAD,
         earliest_delivery_date=CustomerDeliveryDateService.calculate_catering_earliest_date(),
+        packaging_fee_mode=settings.catering_packaging_fee_mode,
+        packaging_fee_amount=fee_amount,
+        packaging_fee_included=fee_amount > 0,
     )
 
 

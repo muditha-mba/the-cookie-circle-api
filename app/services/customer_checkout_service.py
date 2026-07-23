@@ -42,7 +42,9 @@ from app.schemas.client_ordering import (
     ClientOrderPreviewResponse,
     EmailAvailabilityResponse,
 )
-from app.services.package_pricing_service import calculate_package_selling_price
+from app.services.package_pricing_service import calculate_package_selling_price, unit_selling_price
+from app.services.product_cost_service import _money
+from app.utils.collection_packaging_fee import resolve_collection_packaging_fee
 from app.schemas.order import OrderCollectionLineInput, OrderProductLineInput
 from app.services.auth_service import AuthService
 from app.services.customer_attribution_service import CustomerAttributionService
@@ -58,7 +60,6 @@ from app.services.business_setting_service import BusinessSettingService
 from app.services.checkout_follow_up import (
     assert_online_payment_enabled,
     build_checkout_response,
-    order_confirmation_include_order_details_message,
     order_confirmation_intro,
 )
 from app.services.collection_selection_validator import CollectionSelectionValidator
@@ -67,8 +68,8 @@ from app.services.customer_delivery_date_service import (
     CustomerDeliveryDateService,
 )
 from app.services.delivery_fee_service import is_pickup_delivery_area, resolve_delivery_fee
+from app.services.email.order_summary import build_order_email_summary
 from app.services.order_profitability_service import OrderProfitabilityService
-from app.services.whatsapp_order_message_service import WhatsAppOrderMessageService
 from app.services.discount_application_service import DiscountApplicationService
 from app.services.discount_rule_evaluator import DiscountRuleEvaluator
 from app.utils.discount_format import format_discount_label
@@ -144,8 +145,28 @@ class CustomerCheckoutService:
             collection,
             selections=payload.selections,
         )
+        cookie_count = sum(per_pack.values(), Decimal("0"))
+        cookie_subtotal = _money(
+            sum(unit_selling_price(product) * qty for product, qty in per_pack.items()),
+        )
+        packaging_fee = resolve_collection_packaging_fee(
+            collection,
+            cookie_count=cookie_count,
+        )
         unit_price = calculate_package_selling_price(collection, per_pack)
-        return ClientCollectionQuoteResponse(unit_price=unit_price)
+        fee_mode = (
+            collection.package.packaging_fee_mode
+            if collection.package and collection.package.packaging_fee_amount > 0
+            else "flat"
+        )
+        if fee_mode not in ("flat", "per_cookie"):
+            fee_mode = "flat"
+        return ClientCollectionQuoteResponse(
+            unit_price=unit_price,
+            cookie_subtotal=cookie_subtotal,
+            packaging_fee=packaging_fee,
+            packaging_fee_mode=fee_mode,  # type: ignore[arg-type]
+        )
 
     def preview(
         self,
@@ -338,24 +359,23 @@ class CustomerCheckoutService:
             self.db.commit()
             payment_session_id = payment_session.id
 
-        order_details_message = (
-            WhatsAppOrderMessageService.build_order_details_message(
-                loaded,
-                bank_details=settings.bank_transfer_details
-                if loaded.payment_method == PaymentMethod.BANK_TRANSFER
-                else None,
-            )
-            if order_confirmation_include_order_details_message(loaded.payment_method)
-            else None
-        )
         customer_email = normalize_email(payload.customer.email)
         order_type_label = (
             "Catering"
             if loaded.order_type == OrderType.CATERING
             else "Weekly Delivery"
         )
-        premium_packaging_notice = premium_packaging_notice_from_collection_lines(
-            loaded.collection_lines,
+        tax_lines = _build_tax_lines_for_email(loaded)
+        discount_label = _build_discount_label(loaded)
+        order_summary = build_order_email_summary(
+            loaded,
+            order_type_label=order_type_label,
+            discount_label=discount_label,
+            tax_lines=tax_lines,
+        )
+        premium_packaging_notice = (
+            order_summary.premium_packaging_notice
+            or premium_packaging_notice_from_collection_lines(loaded.collection_lines)
         )
         bank_details = (
             settings.bank_transfer_details
@@ -370,19 +390,14 @@ class CustomerCheckoutService:
                 order_type_label=order_type_label,
                 scheduled_delivery_date=loaded.scheduled_delivery_date,
                 total_amount=loaded.total_revenue_snapshot,
-                order_details_message=order_details_message,
-                whatsapp_open_url=(
-                    WhatsAppOrderMessageService.build_whatsapp_open_url()
-                    if order_details_message
-                    else None
-                ),
+                order_summary=order_summary,
                 premium_packaging_notice=premium_packaging_notice,
                 products_subtotal=loaded.products_subtotal_snapshot,
                 collections_subtotal=loaded.collections_subtotal_snapshot,
                 delivery_fee=loaded.delivery_fee_snapshot,
                 discount_amount=loaded.discount_amount_snapshot,
-                discount_label=_build_discount_label(loaded),
-                tax_lines=_build_tax_lines_for_email(loaded),
+                discount_label=discount_label,
+                tax_lines=tax_lines,
                 confirmation_intro=order_confirmation_intro(
                     order_type=loaded.order_type,
                     payment_method=loaded.payment_method,
@@ -489,6 +504,7 @@ class CustomerCheckoutService:
         is_pickup: bool,
         discount_grant=None,
     ):
+        settings = self.settings.get_settings()
         return self.profitability.build_order_snapshots(
             product_lines=[
                 OrderProductLineInput(product_id=line.product_id, quantity=line.quantity)
@@ -512,6 +528,8 @@ class CustomerCheckoutService:
             delivery_fee=delivery_fee,
             is_pickup=is_pickup,
             discount_grant=discount_grant,
+            catering_packaging_fee_mode=settings.catering_packaging_fee_mode,
+            catering_packaging_fee_amount=settings.catering_packaging_fee_amount,
         )
 
     def _resolve_customer(self, payload: ClientCheckoutRequest) -> Customer:

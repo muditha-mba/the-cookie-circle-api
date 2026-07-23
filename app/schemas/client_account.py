@@ -10,6 +10,11 @@ from app.core.enums import OrderStatus, OrderType, PaymentMethod, PaymentStatus
 from app.schemas.client_ordering import ClientBankTransferInstructions
 from app.schemas.fields import NormalizedEmail
 from app.utils.password import validate_password_strength
+from app.utils.phone import (
+    PHONE_MAX_INPUT_LENGTH,
+    validate_optional_phone,
+    validate_phone_number,
+)
 
 
 class ClientAccountProfileResponse(BaseModel):
@@ -32,8 +37,8 @@ class ClientAccountProfileUpdate(BaseModel):
 
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
-    phone: str = Field(min_length=5, max_length=50)
-    phone_secondary: str | None = Field(default=None, max_length=50)
+    phone: str = Field(min_length=5, max_length=PHONE_MAX_INPUT_LENGTH)
+    phone_secondary: str | None = Field(default=None, max_length=PHONE_MAX_INPUT_LENGTH)
     preferred_delivery_area: str | None = Field(default=None, max_length=100)
 
     @field_validator("first_name", "last_name")
@@ -41,9 +46,19 @@ class ClientAccountProfileUpdate(BaseModel):
     def strip_names(cls, value: str) -> str:
         return value.strip()
 
-    @field_validator("phone_secondary", "preferred_delivery_area")
+    @field_validator("phone")
     @classmethod
-    def empty_to_none(cls, value: str | None) -> str | None:
+    def validate_phone(cls, value: str) -> str:
+        return validate_phone_number(value)
+
+    @field_validator("phone_secondary")
+    @classmethod
+    def validate_phone_secondary(cls, value: str | None) -> str | None:
+        return validate_optional_phone(value)
+
+    @field_validator("preferred_delivery_area")
+    @classmethod
+    def empty_preferred_area(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -104,13 +119,18 @@ class ClientAccountAddressBase(BaseModel):
 
 
 class ClientAccountAddressCreate(ClientAccountAddressBase):
-    pass
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        return validate_phone_number(value)
 
 
 class ClientAccountAddressUpdate(BaseModel):
     label: str | None = Field(default=None, min_length=1, max_length=100)
     recipient_name: str | None = Field(default=None, min_length=1, max_length=200)
-    phone: str | None = Field(default=None, min_length=5, max_length=50)
+    phone: str | None = Field(
+        default=None, min_length=5, max_length=PHONE_MAX_INPUT_LENGTH
+    )
     address_line_1: str | None = Field(default=None, min_length=1, max_length=255)
     address_line_2: str | None = Field(default=None, max_length=255)
     city: str | None = Field(default=None, min_length=1, max_length=100)
@@ -119,6 +139,13 @@ class ClientAccountAddressUpdate(BaseModel):
     latitude: Decimal | None = None
     longitude: Decimal | None = None
     is_default: bool | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_phone_number(value)
 
 
 class ClientAccountAddressResponse(ClientAccountAddressBase):

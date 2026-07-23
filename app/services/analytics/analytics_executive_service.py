@@ -28,6 +28,7 @@ from app.services.analytics.analytics_kpi_service import AnalyticsKpiService
 from app.services.analytics.analytics_production_ux_service import AnalyticsProductionUxService
 from app.services.analytics.analytics_product_service import AnalyticsProductService
 from app.utils.analytics_date_range import resolve_analytics_date_range
+from app.utils.collection_display_name import format_package_type_display_name
 
 
 def _metric(value: Decimal, previous: Decimal) -> AnalyticsKpiMetric:
@@ -96,7 +97,14 @@ class AnalyticsExecutiveService:
             date_range=date_range_response(date_range),
             top_product=product[0].name if product else None,
             top_collection=collection[0].name if collection else None,
-            top_package=str(packages[0]["package_name"]) if packages else None,
+            top_package=(
+                format_package_type_display_name(
+                    str(packages[0]["package_name"]),
+                    package_code=str(packages[0].get("package_code") or ""),
+                )
+                if packages
+                else None
+            ),
             top_customer=top_customer.name if top_customer else None,
             highest_revenue_delivery_area=(
                 str(delivery_areas[0]["area_name"]) if delivery_areas else None

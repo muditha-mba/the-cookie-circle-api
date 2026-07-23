@@ -37,6 +37,10 @@ from app.services.package_pricing_service import (
 from app.services.delivery_fee_service import resolve_delivery_cost
 from app.services.packaging_cost_service import calculate_packaging_materials_cost_per_pack
 from app.services.product_cost_service import _money, calculate_breakdown_for_product
+from app.utils.collection_packaging_fee import (
+    resolve_collection_packaging_fee,
+    resolve_packaging_fee_from_settings,
+)
 from app.utils.order_package_fee import package_fee_revenue_from_collection_lines
 
 
@@ -70,6 +74,8 @@ class OrderProfitabilityService:
         delivery_fee: Decimal,
         is_pickup: bool = False,
         discount_grant: CustomerDiscountGrant | None = None,
+        catering_packaging_fee_mode: str = "flat",
+        catering_packaging_fee_amount: Decimal = Decimal("0"),
     ) -> OrderSnapshotBuildResult:
         if not product_lines and not collection_lines:
             raise ValidationError("At least one product or collection line is required")
@@ -82,12 +88,27 @@ class OrderProfitabilityService:
             self._build_collection_line_snapshot(line) for line in collection_lines
         ]
 
-        products_subtotal = _money(
+        products_cookie_subtotal = _money(
             sum(
                 (line.product_selling_price_snapshot * line.quantity for line in built_products),
                 Decimal("0"),
             ),
         )
+        catering_cookie_count = sum(
+            (line.quantity for line in built_products),
+            Decimal("0"),
+        )
+        catering_packaging_fee = (
+            resolve_packaging_fee_from_settings(
+                mode=catering_packaging_fee_mode,
+                amount=catering_packaging_fee_amount,
+                cookie_count=catering_cookie_count,
+            )
+            if built_products
+            else Decimal("0.00")
+        )
+        # Embed catering packaging fee in products subtotal (same pattern as collections).
+        products_subtotal = _money(products_cookie_subtotal + catering_packaging_fee)
         collections_subtotal = _money(
             sum(
                 (
@@ -109,7 +130,10 @@ class OrderProfitabilityService:
                 Decimal("0"),
             ),
         )
-        package_fee_revenue = package_fee_revenue_from_collection_lines(built_collections)
+        package_fee_revenue = _money(
+            package_fee_revenue_from_collection_lines(built_collections)
+            + catering_packaging_fee,
+        )
         packaging_cost = _money(
             sum(
                 (line.packaging_cost_snapshot * line.quantity for line in built_collections),
@@ -415,7 +439,15 @@ class OrderProfitabilityService:
         unit_price = calculate_package_selling_price(collection, per_pack)
         unit_cost = calculate_package_cost(per_pack)
         unit_profit = _money(unit_price - unit_cost)
-        packaging_cost_per_pack = calculate_packaging_materials_cost_per_pack(collection)
+        cookie_count = sum(per_pack.values(), Decimal("0"))
+        packaging_fee = resolve_collection_packaging_fee(
+            collection,
+            cookie_count=cookie_count,
+        )
+        packaging_cost_per_pack = calculate_packaging_materials_cost_per_pack(
+            collection,
+            cookie_count=cookie_count,
+        )
 
         return OrderCollectionLine(
             collection_id=collection.id,
@@ -424,7 +456,7 @@ class OrderProfitabilityService:
             collection_selling_price_snapshot=unit_price,
             collection_cost_snapshot=unit_cost,
             collection_profit_snapshot=unit_profit,
-            package_fee_snapshot=_money(collection.package_fee),
+            package_fee_snapshot=packaging_fee,
             packaging_cost_snapshot=packaging_cost_per_pack,
         )
 
